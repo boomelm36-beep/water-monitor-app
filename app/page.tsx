@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
 // Dynamic Import Leaflet Map เพื่อป้องกันปัญหา SSR ใน Next.js
-const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
+const ZoneMap = dynamic(() => import('@/components/ZoneMap'), { 
   ssr: false,
   loading: () => (
     <div className="h-[400px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center text-slate-400 text-sm">
