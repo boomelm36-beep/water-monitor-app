@@ -1,14 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-
-// Dynamic Import Leaflet เพื่อป้องกันปัญหา SSR (Server-Side Rendering)
-const MapContainer = dynamic(() => import('react-leaflet').then(m => m.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false });
-const CircleMarker = dynamic(() => import('react-leaflet').then(m => m.CircleMarker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then(m => m.Popup), { ssr: false });
-
+// ✅ นำเข้า Component และ Hook จาก react-leaflet โดยตรง
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 export interface LocationZone {
@@ -20,53 +14,149 @@ export interface LocationZone {
   riskLevel: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
   details: string;
   waterLevelDelta: string;
+  keywords: string;
 }
 
-// พิกัดจุดเสี่ยงหลักใน 4 จังหวัด
-const ZONE_LOCATIONS: LocationZone[] = [
-  // กทม.
-  { id: '1', name: 'เขตสายไหม (คลองหกวา)', province: 'กรุงเทพมหานคร', lat: 13.9142, lng: 100.6482, riskLevel: 'YELLOW', details: 'ระดับน้ำเพิ่มขึ้นช้าๆ เฝ้าระวังน้ำล้นตลิ่ง', waterLevelDelta: '+3 ซม.' },
-  { id: '2', name: 'เขตดอนเมือง (ถนนวิภาวดีฯ)', province: 'กรุงเทพมหานคร', lat: 13.9130, lng: 100.6041, riskLevel: 'GREEN', details: 'การจราจรปกติ เร่งระบายน้ำต่อเนื่อง', waterLevelDelta: '0 ซม.' },
-  { id: '3', name: 'เขตบางเขน (วงเวียนบางเขน)', province: 'กรุงเทพมหานคร', lat: 13.8745, lng: 100.5969, riskLevel: 'YELLOW', details: 'มีน้ำขังเล็กน้อยบริเวณวงเวียน', waterLevelDelta: '+2 ซม.' },
-
-  // นนทบุรี
-  { id: '4', name: 'ท่าน้ำนนทบุรี (แม่น้ำเจ้าพระยา)', province: 'นนทบุรี', lat: 13.8415, lng: 100.4912, riskLevel: 'ORANGE', details: 'น้ำหนุนสูงช่วงเย็น เฝ้าระวังระดับน้ำเจ้าพระยา', waterLevelDelta: '+12 ซม.' },
-  { id: '5', name: 'ปากเกร็ด / คลองบ้านใหม่', province: 'นนทบุรี', lat: 13.9127, lng: 100.4981, riskLevel: 'YELLOW', details: 'ประตูระบายน้ำเปิดระบายออกแม่น้ำ', waterLevelDelta: '+5 ซม.' },
-  { id: '6', name: 'ถนนแจ้งวัฒนะ (หน้าศาลปกครอง)', province: 'นนทบุรี', lat: 13.8902, lng: 100.5654, riskLevel: 'GREEN', details: 'รถผ่านได้ทุกช่องทาง', waterLevelDelta: '0 ซม.' },
-
-  // ปทุมธานี
-  { id: '7', name: 'รังสิต (ปตร.จุฬาลงกรณ์)', province: 'ปทุมธานี', lat: 13.9875, lng: 100.6158, riskLevel: 'ORANGE', details: 'ระดับน้ำในคลองรังสิตสูง เร่งสูบน้ำออก', waterLevelDelta: '+8 ซม.' },
-  { id: '8', name: 'ลำลูกกา คลอง 4', province: 'ปทุมธานี', lat: 13.9312, lng: 100.6812, riskLevel: 'YELLOW', details: 'ถนนเลียบคลองมีน้ำขัง 10-15 ซม.', waterLevelDelta: '+4 ซม.' },
-
-  // นครนายก
-  { id: '9', name: 'อ.เมืองนครนายก (แม่น้ำนครนายก)', province: 'นครนายก', lat: 14.2069, lng: 101.2131, riskLevel: 'GREEN', details: 'การระบายน้ำมุ่งหน้าบางปะกงคล่องตัว', waterLevelDelta: '-2 ซม.' },
-  // รังสิต คลอง 4 (ถนนรังสิต-นครนายก / คลองประยูรศักดิ์) เพิ่มเติม
-  { 
-    id: '10', 
-    name: 'รังสิต คลอง 4 (ถนนรังสิต-นครนายก / คลองประยูรศักดิ์)', 
-    province: 'ปทุมธานี', 
-    lat: 13.9875, 
-    lng: 100.6812, 
-    riskLevel: 'YELLOW', 
-    details: 'เฝ้าระวังระดับน้ำคลองรังสิต และน้ำรอการระบายบริเวณซอยเข้าชุมชน', 
-    waterLevelDelta: '+5 ซม.' 
+// 📍 รายชื่อหมุดความเสี่ยง
+export const ZONE_LOCATIONS: LocationZone[] = [
+  {
+    id: 'p1',
+    name: 'รังสิต คลอง 4 (ถนนเลียบคลองสี่ฝั่งตะวันออก)',
+    province: 'ปทุมธานี',
+    lat: 13.9885,
+    lng: 100.6858,
+    riskLevel: 'YELLOW',
+    details: 'เฝ้าระวังระดับน้ำขังถนนเลียบคลองสี่ฝั่งตะวันออก และทางเข้าหมู่บ้าน',
+    waterLevelDelta: '+5 ซม.',
+    keywords: 'รังสิต คลอง 4 คลองสี่ เลียบคลอง4 เลียบคลองสี่ ฝั่งตะวันออก ปทุมธานี ลำลูกกา',
+  },
+  {
+    id: 'p2',
+    name: 'ประตูระบายน้ำจุฬาลงกรณ์ (คลองรังสิตฯ)',
+    province: 'ปทุมธานี',
+    lat: 13.9875,
+    lng: 100.6158,
+    riskLevel: 'ORANGE',
+    details: 'เดินเครื่องสูบน้ำเต็มกำลัง เร่งดึงน้ำลงสู่แม่น้ำเจ้าพระยา',
+    waterLevelDelta: '+8 ซม.',
+    keywords: 'จุฬาลงกรณ์ รังสิต คลอง1 ตลาดรังสิต สะพานแดง ปทุมธานี',
+  },
+  {
+    id: 'p3',
+    name: 'ลำลูกกา คลอง 4 (ถนนเลียบคลอง 4)',
+    province: 'ปทุมธานี',
+    lat: 13.9312,
+    lng: 100.6812,
+    riskLevel: 'YELLOW',
+    details: 'มีน้ำท่วมขังขอบทาง 10-15 ซม. สภาพการจราจรชะลอตัว',
+    waterLevelDelta: '+4 ซม.',
+    keywords: 'ลำลูกกา คลอง 4 คลองสี่ พฤกษา สายใต้ ปทุมธานี',
+  },
+  {
+    id: 'b1',
+    name: 'เขตสายไหม (ประตูระบายน้ำคลองหกวา)',
+    province: 'กรุงเทพมหานคร',
+    lat: 13.9142,
+    lng: 100.6482,
+    riskLevel: 'YELLOW',
+    details: 'ระดับน้ำคลองหกวาเพิ่มขึ้นช้าๆ ยังต่ำกว่าระดับตลิ่ง',
+    waterLevelDelta: '+3 ซม.',
+    keywords: 'สายไหม คลองหกวา หกวา สุขาภิบาล5 กรุงเทพ กทม BKK',
+  },
+  {
+    id: 'b2',
+    name: 'เขตดอนเมือง (ถนนวิภาวดีรังสิต)',
+    province: 'กรุงเทพมหานคร',
+    lat: 13.9130,
+    lng: 100.6041,
+    riskLevel: 'GREEN',
+    details: 'การจราจรปกติ เร่งระบายน้ำขังช่องทางขนาน',
+    waterLevelDelta: '0 ซม.',
+    keywords: 'ดอนเมือง วิภาวดี สนามบินดอนเมือง โทลล์เวย์ กรุงเทพ กทม',
+  },
+  {
+    id: 'b3',
+    name: 'เขตบางเขน (วงเวียนบางเขน / พหลโยธิน)',
+    province: 'กรุงเทพมหานคร',
+    lat: 13.8745,
+    lng: 100.5969,
+    riskLevel: 'YELLOW',
+    details: 'มีน้ำขังรอการระบายเล็กน้อยบริเวณวงเวียน',
+    waterLevelDelta: '+2 ซม.',
+    keywords: 'บางเขน วงเวียนบางเขน พหลโยธิน รามอินทรา กรุงเทพ กทม',
+  },
+  {
+    id: 'n1',
+    name: 'ท่าน้ำนนทบุรี (แม่น้ำเจ้าพระยา)',
+    province: 'นนทบุรี',
+    lat: 13.8415,
+    lng: 100.4912,
+    riskLevel: 'ORANGE',
+    details: 'น้ำเจ้าพระยาหนุนสูงช่วงเย็น เอ่อเข้าท่วมพื้นที่นอกคันกั้นน้ำ',
+    waterLevelDelta: '+12 ซม.',
+    keywords: 'ท่าน้ำนนท์ นนทบุรี พิบูลสงคราม เจ้าพระยา เมืองนนท์',
+  },
+  {
+    id: 'n2',
+    name: 'ปากเกร็ด / คลองบ้านใหม่',
+    province: 'นนทบุรี',
+    lat: 13.9127,
+    lng: 100.4981,
+    riskLevel: 'YELLOW',
+    details: 'เฝ้าระวังระดับน้ำเอ่อล้นเข้าชุมชนริมคลอง',
+    waterLevelDelta: '+5 ซม.',
+    keywords: 'ปากเกร็ด แจ้งวัฒนะ นนทบุรี คลองบ้านใหม่',
+  },
+  {
+    id: 'ny1',
+    name: 'อ.เมืองนครนายก (แม่น้ำนครนายก)',
+    province: 'นครนายก',
+    lat: 14.2069,
+    lng: 101.2131,
+    riskLevel: 'GREEN',
+    details: 'การระบายน้ำมุ่งหน้าบางปะกงยังทำได้ดี ไม่มีน้ำท่วมขัง',
+    waterLevelDelta: '-2 ซม.',
+    keywords: 'นครนายก เมืองนครนายก แม่น้ำนครนายก เขื่อนขุนด่าน',
   },
 ];
+
+// 🛸 Component ควบคุมเลื่อนหน้าจอแผนที่
+function MapFlyController({ zones }: { zones: LocationZone[] }) {
+  const map = useMap(); // เรียกใช้ useMap ได้ตามปกติ
+
+  useEffect(() => {
+    if (zones && zones.length > 0) {
+      const target = zones[0];
+      const zoomLevel = zones.length === 1 ? 14 : 11;
+      map.flyTo([target.lat, target.lng], zoomLevel, {
+        duration: 1.2,
+      });
+    }
+  }, [zones, map]);
+
+  return null;
+}
 
 export default function ZoneMap({ selectedProvince, searchQuery }: { selectedProvince: string; searchQuery: string }) {
   const [filteredZones, setFilteredZones] = useState<LocationZone[]>(ZONE_LOCATIONS);
 
   useEffect(() => {
     let result = ZONE_LOCATIONS;
+
     if (selectedProvince !== 'ALL') {
       result = result.filter(z => z.province === selectedProvince);
     }
+
     if (searchQuery.trim() !== '') {
-      result = result.filter(z => 
-        z.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        z.details.toLowerCase().includes(searchQuery.toLowerCase())
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(z =>
+        z.name.toLowerCase().includes(q) ||
+        z.details.toLowerCase().includes(q) ||
+        z.province.toLowerCase().includes(q) ||
+        z.keywords.toLowerCase().includes(q)
       );
     }
+
     setFilteredZones(result);
   }, [selectedProvince, searchQuery]);
 
@@ -86,10 +176,11 @@ export default function ZoneMap({ selectedProvince, searchQuery }: { selectedPro
           <h3 className="font-bold text-md flex items-center gap-2">
             🗺️ แผนผังแสดงความเสี่ยงโซนน้ำท่วม (Color-Coded Zoning Map)
           </h3>
-          <p className="text-xs text-slate-400">ครอบคลุม กทม., นนทบุรี, ปทุมธานี, นครนายก</p>
+          <p className="text-xs text-slate-400">
+            {filteredZones.length > 0 ? `พบหมุดสถานที่ ${filteredZones.length} จุด` : '❌ ไม่พบหมุดสถานที่ที่ค้นหา'}
+          </p>
         </div>
         
-        {/* Legend บอกสัญลักษณ์สี */}
         <div className="hidden md:flex gap-3 text-xs">
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> ปกติ</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500"></span> เฝ้าระวัง</span>
@@ -98,31 +189,30 @@ export default function ZoneMap({ selectedProvince, searchQuery }: { selectedPro
         </div>
       </div>
 
-      {/* แผนที่ Interactive Leaflet Map */}
-      <div className="h-[400px] w-full relative z-0">
-        {/* ปรับ center เป็นพิกัดรังสิต คลอง 4 และเพิ่ม zoom เป็น 12-13 เพื่อให้เห็นชัดเจน */}
-          <MapContainer 
-            center={[13.9875, 100.6812]} 
-            zoom={13} 
-            style={{ height: '100%', width: '100%' }}
-          >
+      <div className="h-[420px] w-full relative z-0">
+        <MapContainer center={[13.9885, 100.6858]} zoom={13} style={{ height: '100%', width: '100%' }}>
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; OpenStreetMap contributors'
           />
+
+          <MapFlyController zones={filteredZones} />
+
           {filteredZones.map((zone) => (
             <CircleMarker
               key={zone.id}
               center={[zone.lat, zone.lng]}
-              radius={12}
-              pathOptions={{ fillColor: getColor(zone.riskLevel), color: '#fff', weight: 2, fillOpacity: 0.8 }}
+              radius={14}
+              pathOptions={{ fillColor: getColor(zone.riskLevel), color: '#ffffff', weight: 2.5, fillOpacity: 0.85 }}
             >
               <Popup>
-                <div className="p-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">{zone.province}</span>
-                  <h4 className="font-bold text-sm text-slate-900">{zone.name}</h4>
-                  <p className="text-xs text-slate-600 my-1">{zone.details}</p>
-                  <span className="text-xs font-semibold text-blue-600">การเปลี่ยนแปลง (1 ชม.): {zone.waterLevelDelta}</span>
+                <div className="p-1 min-w-[180px]">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">{zone.province}</span>
+                  <h4 className="font-bold text-sm text-slate-900 mt-0.5">{zone.name}</h4>
+                  <p className="text-xs text-slate-600 my-1.5">{zone.details}</p>
+                  <div className="text-xs font-semibold text-blue-600 bg-blue-50 p-1.5 rounded-lg border border-blue-100">
+                    การเปลี่ยนแปลง (1 ชม.): {zone.waterLevelDelta}
+                  </div>
                 </div>
               </Popup>
             </CircleMarker>

@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import RouteChecker from '@/components/RouteChecker';
+import WaterChart from '@/components/WaterChart';
 
 // Dynamic Import Leaflet Map เพื่อป้องกันปัญหา SSR ใน Next.js
-const ZoneMap = dynamic(() => import('@/components/ZoneMap'), { 
+const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
   ssr: false,
   loading: () => (
-    <div className="h-[400px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center text-slate-400 text-sm">
+    <div className="h-[420px] w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center text-slate-400 text-sm">
       🗺️ กำลังโหลดแผนผังแผนที่ความเสี่ยง...
     </div>
   ),
@@ -29,9 +31,9 @@ export default function WaterDashboard() {
   const [data, setData] = useState<WaterData | null>(null);
   const [loading, setLoading] = useState(true);
 
-// ✅ เปลี่ยนเป็น (ตั้งค่าเริ่มต้นเป็น ปทุมธานี และ ค้นหา "รังสิต คลอง 4")
-const [selectedProvince, setSelectedProvince] = useState<string>('ปทุมธานี');
-const [searchQuery, setSearchQuery] = useState<string>('รังสิต คลอง 4');
+  // ตั้งค่าพื้นที่แสดงผลเริ่มต้นเป็น ปทุมธานี และ รังสิต คลอง 4
+  const [selectedProvince, setSelectedProvince] = useState<string>('ปทุมธานี');
+  const [searchQuery, setSearchQuery] = useState<string>('รังสิต คลอง 4');
 
   // ดึงข้อมูล API เมื่อโหลดหน้าเว็บ
   useEffect(() => {
@@ -53,50 +55,62 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
 
   const provinces = [
     { id: 'ALL', name: '🌐 ทั้งหมด 4 จังหวัด' },
-    { id: 'กรุงเทพมหานคร', name: '🏙️ กรุงเทพฯ (สายไหม/ดอนเมือง/บางเขน)' },
-    { id: 'นนทบุรี', name: '⛵ นนทบุรี (ปากเกร็ด/เมืองนนท์)' },
     { id: 'ปทุมธานี', name: '🌊 ปทุมธานี (รังสิต/ลำลูกกา)' },
+    { id: 'กรุงเทพมหานคร', name: '🏙️ กรุงเทพฯ (สายไหม/ดอนเมือง)' },
+    { id: 'นนทบุรี', name: '⛵ นนทบุรี (ปากเกร็ด/เมืองนนท์)' },
     { id: 'นครนายก', name: '🏞️ นครนายก' },
   ];
+
+  // ฟังก์ชันช่วยเช็กว่าเนื้อหานั้นตรงกับที่ Search หรือ Province หรือไม่
+  const isMatchFilter = (prov: string, text: string) => {
+    if (selectedProvince !== 'ALL' && prov !== selectedProvince) return false;
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase().trim();
+      return text.toLowerCase().includes(q) || prov.toLowerCase().includes(q);
+    }
+    return true;
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       
-      {/* 🟢 Header / ส่วนหัวสรุปภาพรวม */}
+      {/* 🟢 Header / สรุปภาพรวมส่วนหัว */}
       <header className="bg-blue-900 text-white py-6 px-4 shadow-md">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="inline-block px-3 py-1 bg-blue-800 text-blue-200 text-xs rounded-full font-semibold mb-2">
-              🛰️ ระบบติดตามสถานการณ์น้ำ กทม. นนทบุรี ปทุมธานี นครนายก รายชั่วโมง
+              🛰️ ระบบติดตามและรายงานสถานการณ์น้ำ กทม. นนทบุรี ปทุมธานี นครนายก รายชั่วโมง
             </div>
             <h1 className="text-2xl md:text-3xl font-bold">ศูนย์เฝ้าระวังน้ำและแจ้งเตือนภัยจราจร</h1>
             <p className="text-blue-200 text-sm mt-1">ข้อมูลอัปเดตล่าสุด ณ เวลา: {currentTime} น.</p>
           </div>
-          <div className="bg-blue-800/80 backdrop-blur border border-blue-700 p-4 rounded-xl text-center min-w-[210px]">
-            <span className="text-xs text-blue-200 block uppercase tracking-wider font-semibold">ระดับความเสี่ยงภาพรวม</span>
-            <span className="text-2xl font-black text-yellow-400 block my-1">🟡 เฝ้าระวัง</span>
-            <span className="text-xs text-blue-100">ฝนตกบางพื้นที่ / น้ำหนุนเจ้าพระยา</span>
+          <div className="bg-blue-800/80 backdrop-blur border border-blue-700 p-4 rounded-xl text-center min-w-[220px]">
+            <span className="text-xs text-blue-200 block uppercase font-semibold">พื้นที่ติดตามปัจจุบัน</span>
+            <span className="text-xl font-bold text-yellow-400 block my-1">
+              {searchQuery ? `🔍 ${searchQuery}` : selectedProvince}
+            </span>
+            <span className="text-xs text-blue-100">สถานะ: 🟡 เฝ้าระวัง</span>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
-        {/* 🔍 ส่วนที่เพิ่ม 1: ค้นหาและตัวกรองเลือกจังหวัด */}
+        {/* 🔍 ช่องค้นหาพื้นที่ และ ตัวกรองเลือกจังหวัด */}
         <section className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 ค้นหาพื้นที่, ถนน, คลอง (เช่น สายไหม, ลำลูกกา คลอง 4, ท่าน้ำนนท์, พหลโยธิน)..."
-              className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              placeholder="🔍 พิมพ์ค้นหาพื้นที่ เช่น รังสิต คลอง 4, สายไหม, ท่าน้ำนนท์, พหลโยธิน..."
+              className="w-full pl-10 pr-24 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
             />
             <span className="absolute left-3.5 top-3.5 text-slate-400">🔍</span>
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-3 text-xs bg-slate-200 text-slate-600 hover:bg-slate-300 px-2 py-1 rounded-full"
+                className="absolute right-3 top-2.5 text-xs bg-slate-200 text-slate-700 hover:bg-slate-300 px-3 py-1.5 rounded-lg font-medium transition-all"
               >
                 ล้างคำค้น
               </button>
@@ -107,7 +121,11 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
             {provinces.map((prov) => (
               <button
                 key={prov.id}
-                onClick={() => setSelectedProvince(prov.id)}
+                onClick={() => {
+                  setSelectedProvince(prov.id);
+                  if (prov.id === 'ปทุมธานี') setSearchQuery('รังสิต คลอง 4');
+                  else setSearchQuery('');
+                }}
                 className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
                   selectedProvince === prov.id
                     ? 'bg-blue-900 text-white shadow-sm'
@@ -120,8 +138,14 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
           </div>
         </section>
 
-        {/* 🗺️ ส่วนที่เพิ่ม 2: แผนผังโซนความเสี่ยง (Interactive Map) */}
+        {/* 🗺️ แผนผังโซนความเสี่ยง (Interactive Leaflet Map) */}
         <ZoneMap selectedProvince={selectedProvince} searchQuery={searchQuery} />
+
+        {/* 🚘 ระบบเช็กเส้นทางเดินทางปลอดภัย */}
+        <RouteChecker />
+
+        {/* 📊 กราฟวิเคราะห์เทรนด์ระดับน้ำย้อนหลัง */}
+        <WaterChart />
 
         {/* ⚡ สรุปสถานการณ์ด่วน (Quick Overview) */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
@@ -156,7 +180,7 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
               <span className="text-xs text-slate-500 font-medium">สภาพถนนโดยรวม</span>
               <div className="text-2xl font-bold text-amber-900 mt-1">🟠 เฝ้าระวัง</div>
               <div className="text-xs mt-2 text-amber-700 font-medium">
-                ท่าน้ำนนท์ & ลำลูกกา คลอง 4 มีน้ำขัง
+                เลียบคลองสี่ & ท่าน้ำนนท์ มีน้ำขัง
               </div>
             </div>
 
@@ -172,42 +196,60 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
           </div>
         </section>
 
-        {/* 📑 รายงานสถานการณ์เต็มตาม 17 หัวข้อ */}
+        {/* 📑 รายงานสถานการณ์เต็มตาม 17 หัวข้อ (Dynamic กรองตามพื้นที่) */}
         <section className="space-y-6">
-          <h2 className="text-xl font-bold text-slate-900">📊 รายงานฉบับเต็มรายชั่วโมง</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold text-slate-900">
+              📊 รายงานสถานการณ์ 17 หัวข้อ ({searchQuery || selectedProvince})
+            </h2>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* คอลัมน์ซ้าย: สถานการณ์ฝน + น้ำ + การระบายน้ำ */}
+            {/* คอลัมน์ซ้าย: สถานการณ์ฝน + น้ำ + ตารางระดับน้ำ */}
             <div className="lg:col-span-2 space-y-6">
 
               {/* 1. 🚦 สถานการณ์โดยรวม & 2. ⚠️ สิ่งที่ต้องรู้ทันที */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="text-md font-bold text-blue-900 border-b pb-2">1. 🚦 สถานการณ์โดยรวม & ⚠️ สิ่งที่ต้องรู้ทันที</h3>
-                <ul className="space-y-2 text-sm text-slate-700">
-                  <li className="flex items-start gap-2">
-                    <span className="text-red-500 font-bold">•</span>
-                    <span><strong>แม่น้ำเจ้าพระยา (นนทบุรี):</strong> ช่วงเย็นมีน้ำทะเลหนุนสูง ให้ชุมชนนอกคันกั้นน้ำท่าน้ำนนท์ระวังน้ำเอ่อล้น</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-amber-500 font-bold">•</span>
-                    <span><strong>ระดับน้ำคลองรังสิตฯ & คลองหกวา:</strong> เพิ่มขึ้นช้าๆ ยังต่ำกว่าระดับตลิ่ง</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
-                    <span><strong>จุดน่าห่วง:</strong> ถนนเลียบคลอง 4 ลำลูกกา, ท่าน้ำนนทบุรี, ชุมชนสะพานแดง รังสิต</span>
-                  </li>
+                <h3 className="text-md font-bold text-blue-900 border-b pb-2">
+                  1. 🚦 สถานการณ์โดยรวม & ⚠️ สิ่งที่ต้องรู้ทันทีในพื้นที่
+                </h3>
+                <ul className="space-y-2.5 text-sm text-slate-700">
+                  {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4 ลำลูกกา') && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-500 font-bold">•</span>
+                      <span><strong>ปทุมธานี / รังสิต คลอง 4:</strong> ระดับน้ำเลียบคลองสี่ฝั่งตะวันออกมีน้ำขังเล็กน้อย เครื่องสูบน้ำเทศบาลเปิดระบายต่อเนื่อง</span>
+                    </li>
+                  )}
+                  {isMatchFilter('กรุงเทพมหานคร', 'สายไหม ดอนเมือง') && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-500 font-bold">•</span>
+                      <span><strong>กทม. / สายไหม:</strong> คลองหกวาเร่งระบายน้ำลงฝั่งตะวันออก สภาพถนนวิภาวดีรังสิตสัญจรได้ปกติ</span>
+                    </li>
+                  )}
+                  {isMatchFilter('นนทบุรี', 'ท่าน้ำนนท์ พิบูลสงคราม') && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 font-bold">•</span>
+                      <span><strong>นนทบุรี / ท่าน้ำนนท์:</strong> ให้ระวังน้ำเจ้าพระยาหนุนสูงช่วงเย็น เอ่อเข้าท่วมถนนขอบทางและพื้นที่นอกคันกั้นน้ำ</span>
+                    </li>
+                  )}
+                  {isMatchFilter('นครนายก', 'เมืองนครนายก') && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold">•</span>
+                      <span><strong>นครนายก:</strong> แม่น้ำนครนายกระบายน้ำคล่องตัว มุ่งหน้าแม่น้ำบางปะกง ยังไม่มีจุดน้ำท่วมขังน่าห่วง</span>
+                    </li>
+                  )}
                 </ul>
               </div>
 
               {/* 5. 🌧️ ปริมาณฝน & 6. 💧 ระดับน้ำในคลองหลัก */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 className="text-md font-bold text-blue-900 mb-4">5. 🌧️ ปริมาณฝน & 6. 💧 ระดับน้ำในคลองและแม่น้ำหลัก</h3>
+                <h3 className="text-md font-bold text-blue-900 mb-4">5. 🌧️ ปริมาณฝน & 6. 💧 ตารางระดับน้ำรายสถานี</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead className="bg-slate-100 text-slate-700 text-xs uppercase font-semibold">
                       <tr>
-                        <th className="p-3 rounded-l-lg">จุดวัด / จังหวัด</th>
+                        <th className="p-3 rounded-l-lg">สถานี / คลอง</th>
                         <th className="p-3">ระดับปัจจุบัน</th>
                         <th className="p-3">1 ชม. ก่อน</th>
                         <th className="p-3">เปลี่ยน (1 ชม.)</th>
@@ -215,85 +257,80 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      <tr>
-                        <td className="p-3 font-medium text-slate-900">คลองรังสิตฯ (ปทุมธานี)</td>
-                        <td className="p-3">1.45 ม.</td>
-                        <td className="p-3 text-slate-500">1.40 ม.</td>
-                        <td className="p-3 text-red-600 font-semibold">+5 ซม.</td>
-                        <td className="p-3"><span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">ขึ้น</span></td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-medium text-slate-900">คลองหกวา สายไหม (กทม.)</td>
-                        <td className="p-3">1.10 ม.</td>
-                        <td className="p-3 text-slate-500">1.12 ม.</td>
-                        <td className="p-3 text-green-600 font-semibold">-2 ซม.</td>
-                        <td className="p-3"><span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">ลง</span></td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-medium text-slate-900">ท่าน้ำนนทบุรี (นนทบุรี)</td>
-                        <td className="p-3">2.10 ม.</td>
-                        <td className="p-3 text-slate-500">1.98 ม.</td>
-                        <td className="p-3 text-red-600 font-semibold">+12 ซม.</td>
-                        <td className="p-3"><span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">ขึ้น (น้ำหนุน)</span></td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-medium text-slate-900">แม่น้ำนครนายก (นครนายก)</td>
-                        <td className="p-3">2.30 ม.</td>
-                        <td className="p-3 text-slate-500">2.30 ม.</td>
-                        <td className="p-3 text-slate-500 font-semibold">0 ซม.</td>
-                        <td className="p-3"><span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">ทรงตัว</span></td>
-                      </tr>
+                      {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4') && (
+                        <tr>
+                          <td className="p-3 font-medium text-slate-900">คลองรังสิตฯ (คลอง 4 ฝั่งตะวันออก)</td>
+                          <td className="p-3">1.45 ม.</td>
+                          <td className="p-3 text-slate-500">1.40 ม.</td>
+                          <td className="p-3 text-red-600 font-semibold">+5 ซม.</td>
+                          <td className="p-3"><span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">ขึ้น</span></td>
+                        </tr>
+                      )}
+                      {isMatchFilter('กรุงเทพมหานคร', 'สายไหม') && (
+                        <tr>
+                          <td className="p-3 font-medium text-slate-900">คลองหกวา (ประตูน้ำสายไหม)</td>
+                          <td className="p-3">1.10 ม.</td>
+                          <td className="p-3 text-slate-500">1.12 ม.</td>
+                          <td className="p-3 text-green-600 font-semibold">-2 ซม.</td>
+                          <td className="p-3"><span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">ลง</span></td>
+                        </tr>
+                      )}
+                      {isMatchFilter('นนทบุรี', 'ท่าน้ำนนท์') && (
+                        <tr>
+                          <td className="p-3 font-medium text-slate-900">ท่าน้ำนนทบุรี (แม่น้ำเจ้าพระยา)</td>
+                          <td className="p-3">2.10 ม.</td>
+                          <td className="p-3 text-slate-500">1.98 ม.</td>
+                          <td className="p-3 text-red-600 font-semibold">+12 ซม.</td>
+                          <td className="p-3"><span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">ขึ้น (น้ำหนุน)</span></td>
+                        </tr>
+                      )}
+                      {isMatchFilter('นครนายก', 'เมืองนครนายก') && (
+                        <tr>
+                          <td className="p-3 font-medium text-slate-900">แม่น้ำนครนายก (เมืองนครนายก)</td>
+                          <td className="p-3">2.30 ม.</td>
+                          <td className="p-3 text-slate-500">2.30 ม.</td>
+                          <td className="p-3 text-slate-500 font-semibold">0 ซม.</td>
+                          <td className="p-3"><span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">ทรงตัว</span></td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
-                <p className="text-xs text-slate-400 mt-3">* แหล่งข้อมูล: ThaiWater, กรมชลประทาน & สำนักการระบายน้ำ กทม.</p>
               </div>
 
               {/* 8. 🚗 น้ำท่วมถนนและการเดินทาง */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="text-md font-bold text-blue-900 border-b pb-2">8. 🚗 สถานะถนน & ประเภทรถที่ผ่านได้</h3>
+                <h3 className="text-md font-bold text-blue-900 border-b pb-2">8. 🚗 สถานะถนนในพื้นที่ที่เลือก</h3>
                 <div className="space-y-3">
-                  
-                  {/* ถนนจุดที่ 1 - นนทบุรี */}
-                  {(selectedProvince === 'ALL' || selectedProvince === 'นนทบุรี') && (
-                    <div className="p-3 rounded-xl border border-orange-200 bg-orange-50/30">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-slate-800 text-sm">📍 นนทบุรี: ถนนพิบูลสงคราม (ช่วงท่าน้ำนนท์)</span>
-                        <span className="px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded font-semibold">🟠 มีน้ำหนุนเอ่อล้น 20 ซม.</span>
+                  {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4') && (
+                    <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/40">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-slate-800 text-sm">📍 ถนนเลียบคลองสี่ฝั่งตะวันออก (รังสิต คลอง 4)</span>
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded font-semibold">🟡 น้ำขัง 10-15 ซม.</span>
                       </div>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-medium">✓ กระบะ/SUV</span>
-                        <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-medium">✓ รถบรรทุก</span>
-                        <span className="px-2 py-1 bg-red-100 text-red-800 rounded font-medium">❌ รถเล็ก/เก๋ง (ควรเลี่ยง)</span>
-                      </div>
+                      <p className="text-xs text-slate-600 mb-2">รถกระบะ/SUV ผ่านได้คล่องตัว รถเก๋งเล็กควรชะลอความเร็วช่วงซอยเข้าหมู่บ้าน</p>
                     </div>
                   )}
 
-                  {/* ถนนจุดที่ 2 - ปทุมธานี */}
-                  {(selectedProvince === 'ALL' || selectedProvince === 'ปทุมธานี') && (
-                    <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/30">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-slate-800 text-sm">📍 ปทุมธานี: ถนนลำลูกกา ช่วงคลอง 4</span>
-                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded font-semibold">🟡 มีน้ำขัง 10-15 ซม.</span>
+                  {isMatchFilter('นนทบุรี', 'ท่าน้ำนนท์') && (
+                    <div className="p-3.5 rounded-xl border border-orange-200 bg-orange-50/40">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-slate-800 text-sm">📍 ถนนพิบูลสงคราม (ท่าน้ำนนทบุรี)</span>
+                        <span className="px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded font-semibold">🟠 น้ำเจ้าพระยาหนุน 20 ซม.</span>
                       </div>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-medium">✓ กระบะ/SUV</span>
-                        <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded font-medium">⚠️ เก๋ง/มอเตอร์ไซค์ (ชะลอตัว)</span>
-                      </div>
+                      <p className="text-xs text-slate-600 mb-2">รถเล็กควรหลีกเลี่ยงช่วงเวลา 16:00 - 19:00 น.</p>
                     </div>
                   )}
 
-                  {/* ถนนจุดที่ 3 - กทม */}
-                  {(selectedProvince === 'ALL' || selectedProvince === 'กรุงเทพมหานคร') && (
-                    <div className="p-3 rounded-xl border border-green-200 bg-green-50/30">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold text-slate-800 text-sm">📍 กทม.: ถนนวิภาวดีรังสิต (ช่วงดอนเมือง-หลักสี่)</span>
+                  {isMatchFilter('กรุงเทพมหานคร', 'วิภาวดี ดอนเมือง') && (
+                    <div className="p-3.5 rounded-xl border border-green-200 bg-green-50/40">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-slate-800 text-sm">📍 ถนนวิภาวดีรังสิต (ช่วงดอนเมือง-หลักสี่)</span>
                         <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded font-semibold">🟢 ปกติ</span>
                       </div>
                       <p className="text-xs text-slate-600">ผ่านได้ตามปกติทุกช่องทาง การจราจรคล่องตัว</p>
                     </div>
                   )}
-
                 </div>
               </div>
 
@@ -328,7 +365,7 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
                 <h3 className="text-md font-bold text-slate-900 border-b pb-2">12. 🔮 คาดการณ์แนวโน้มรายโซน</h3>
                 <div className="space-y-2 text-xs text-slate-700">
                   <div className="flex justify-between border-b pb-1">
-                    <span>1–3 ชั่วโมง (กทม./สายไหม):</span>
+                    <span>1–3 ชั่วโมง (สายไหม/กทม.):</span>
                     <span className="font-semibold text-amber-600">ฝนตกเล็กน้อย-ปานกลาง</span>
                   </div>
                   <div className="flex justify-between border-b pb-1">
@@ -336,26 +373,37 @@ const [searchQuery, setSearchQuery] = useState<string>('รังสิต ค�
                     <span className="font-semibold text-orange-600">น้ำหนุนเริ่มลดระดับลง</span>
                   </div>
                   <div className="flex justify-between border-b pb-1">
-                    <span>6–24 ชั่วโมง (ปทุมฯ/นครนายก):</span>
+                    <span>6–24 ชั่วโมง (รังสิต/นครนายก):</span>
                     <span className="font-semibold text-green-600">ทรงตัว ระบายได้ดี</span>
                   </div>
                 </div>
               </div>
 
               {/* 15. 📢 ข่าว & ประกาศล่าสุด */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-                <h3 className="text-md font-bold text-slate-900 border-b pb-2">📢 ประกาศและ Social Media</h3>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <h3 className="text-md font-bold text-slate-900 border-b pb-2">📢 ข่าว & ประกาศในพื้นที่</h3>
                 <div className="space-y-3 text-xs">
-                  <div className="border-l-2 border-blue-500 pl-3">
-                    <p className="font-bold text-slate-800">สำนักการระบายน้ำ กทม.</p>
-                    <p className="text-slate-600 mt-0.5">เร่งเร่งระบายน้ำคลองหกวาและประตูระบายน้ำฝั่งตะวันออกรองรับกลุ่มฝนใหม่</p>
-                    <span className="text-[10px] text-slate-400">15 นาทีที่แล้ว • Facebook ทางการ</span>
-                  </div>
-                  <div className="border-l-2 border-amber-500 pl-3">
-                    <p className="font-bold text-slate-800">เทศบาลนนทบุรี</p>
-                    <p className="text-slate-600 mt-0.5">วางแนวกระสอบทรายเสริมคันกั้นน้ำริมแม่น้ำเจ้าพระยาบริเวณท่าน้ำนนท์</p>
-                    <span className="text-[10px] text-slate-400">30 นาทีที่แล้ว • เพจเทศบาล</span>
-                  </div>
+                  {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4') && (
+                    <div className="border-l-2 border-blue-500 pl-3">
+                      <p className="font-bold text-slate-800">เทศบาลเมืองคลองหลวง / เทศบาลนครรังสิต</p>
+                      <p className="text-slate-600 mt-0.5">เร่งเสริมเครื่องสูบน้ำบริเวณจุดตัดถนนเลียบคลองสี่ฝั่งตะวันออกดึงน้ำออกจากชุมชน</p>
+                      <span className="text-[10px] text-slate-400">10 นาทีที่แล้ว</span>
+                    </div>
+                  )}
+                  {isMatchFilter('กรุงเทพมหานคร', 'สายไหม') && (
+                    <div className="border-l-2 border-emerald-500 pl-3">
+                      <p className="font-bold text-slate-800">สำนักงานเขตสายไหม</p>
+                      <p className="text-slate-600 mt-0.5">ประตูระบายน้ำคลองหกวาทำงานปกติ ระดับน้ำดียังควบคุมได้</p>
+                      <span className="text-[10px] text-slate-400">20 นาทีที่แล้ว</span>
+                    </div>
+                  )}
+                  {isMatchFilter('นนทบุรี', 'ท่าน้ำนนท์') && (
+                    <div className="border-l-2 border-amber-500 pl-3">
+                      <p className="font-bold text-slate-800">เทศบาลนครนนทบุรี</p>
+                      <p className="text-slate-600 mt-0.5">วางแนวกระสอบทรายเสริมคันกั้นน้ำริมแม่น้ำเจ้าพระยาบริเวณท่าน้ำนนท์</p>
+                      <span className="text-[10px] text-slate-400">35 นาทีที่แล้ว</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
