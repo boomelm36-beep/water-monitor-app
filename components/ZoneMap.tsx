@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Marker, useMap } from 're
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// ปรับแต่ง Icon สำหรับหมุดค้นหาจริง
+// Icon สำหรับหมุดค้นหาพิกัดจริง
 const searchIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -15,7 +15,7 @@ const searchIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-export interface StationData {
+export interface WaterStation {
   id?: number;
   station_name: string;
   water_level_m: number;
@@ -24,10 +24,9 @@ export interface StationData {
   province: string;
   lat: number;
   lng: number;
-  zone_color: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
+  zone_color?: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
 }
 
-// 🛸 Component ควบคุมให้แผนที่บิน (FlyTo) ไปยังหมุดค้นหาจริงหรือตำแหน่งผู้ใช้
 function MapController({ targetCoords, zoom = 14 }: { targetCoords: { lat: number; lng: number } | null; zoom?: number }) {
   const map = useMap();
 
@@ -49,31 +48,23 @@ export default function ZoneMap({
   searchQuery: string;
   userLocation: { lat: number; lng: number } | null;
 }) {
-  const [stations, setStations] = useState<StationData[]>([]);
+  const [stations, setStations] = useState<WaterStation[]>([]);
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; displayName: string } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // 1. ดึงข้อมูลหมุดสถานีวัดน้ำจริงจาก Supabase ผ่าน API
+  // 1. ดึงข้อมูลสถานีวัดระดับน้ำจริงจาก API
   useEffect(() => {
     fetch('/api/water-summary')
       .then((res) => res.json())
       .then((resData) => {
         if (resData.success && resData.data?.stations) {
           setStations(resData.data.stations);
-        } else {
-          // Fallback สถานีหลักถ้าระบบเพิ่งเริ่ม
-          setStations([
-            { station_name: 'รังสิต คลอง 4 (ถนนเลียบคลองสี่ฝั่งตะวันออก)', water_level_m: 1.45, bank_level_m: 2.50, flow_status: 'ปกติ', province: 'ปทุมธานี', lat: 13.9885, lng: 100.6858, zone_color: 'YELLOW' },
-            { station_name: 'ปตร.จุฬาลงกรณ์', water_level_m: 1.85, bank_level_m: 2.20, flow_status: 'เร่งระบาย', province: 'ปทุมธานี', lat: 13.9875, lng: 100.6158, zone_color: 'ORANGE' },
-            { station_name: 'ปตร.คลองหกวา (สายไหม)', water_level_m: 1.10, bank_level_m: 2.00, flow_status: 'ปกติ', province: 'กรุงเทพมหานคร', lat: 13.9142, lng: 100.6482, zone_color: 'GREEN' },
-            { station_name: 'ท่าน้ำนนทบุรี', water_level_m: 2.10, bank_level_m: 2.30, flow_status: 'น้ำหนุน', province: 'นนทบุรี', lat: 13.8415, lng: 100.4912, zone_color: 'ORANGE' },
-          ]);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error('Failed to load stations:', err));
   }, []);
 
-  // 2. ค้นหาพิกัดจริงบนแผนที่โลกเมื่อมีการพิมพ์ Search (Nominatim Geocoding API)
+  // 2. ค้นหาพิกัดจริงของ คลอง / แม่น้ำ / ประตูระบายน้ำ / สถานีสูบน้ำ จาก OpenStreetMap Nominatim
   useEffect(() => {
     if (!searchQuery || searchQuery.trim() === '' || searchQuery.includes('ตำแหน่งปัจจุบัน')) {
       setSearchedLocation(null);
@@ -83,10 +74,20 @@ export default function ZoneMap({
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        // ค้นหาพิกัดสถานที่ในไทยจริงจาก OpenStreetMap
-        const query = encodeURIComponent(`${searchQuery} ประเทศไทย`);
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
-        const data = await res.json();
+        const cleanQuery = searchQuery.trim();
+        // เน้นคำค้นหาเจาะจงทางน้ำ
+        const queryWithWater = cleanQuery.match(/(คลอง|แม่น้ำ|ประตูระบายน้ำ|ปตร|สถานีสูบน้ำ)/)
+          ? `${cleanQuery} ประเทศไทย`
+          : `คลอง ${cleanQuery} ประเทศไทย`;
+
+        let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryWithWater)}&limit=1`);
+        let data = await res.json();
+
+        // หากค้นหาทางน้ำเจาะจงไม่เจอ ให้ค้นหาชื่อสถานที่ทั่วไปในไทย
+        if (!data || data.length === 0) {
+          res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${cleanQuery} ประเทศไทย`)}&limit=1`);
+          data = await res.json();
+        }
 
         if (data && data.length > 0) {
           setSearchedLocation({
@@ -100,19 +101,36 @@ export default function ZoneMap({
       } finally {
         setIsSearching(false);
       }
-    }, 800); // Debounce ป้องกันการยิง API ถี่เกินไป
+    }, 700);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // กรองหมุดสถานีตามจังหวัด
+  // กรองเฉพาะสถานีจริงตามจังหวัด หรือชื่อสายน้ำ
   const filteredStations = stations.filter((s) => {
-    if (selectedProvince === 'ALL') return true;
-    return s.province === selectedProvince;
+    const matchesProvince = selectedProvince === 'ALL' || s.province === selectedProvince;
+    if (!matchesProvince) return false;
+
+    if (searchQuery && searchQuery.trim() !== '' && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        s.station_name.toLowerCase().includes(q) ||
+        s.province.toLowerCase().includes(q)
+      );
+    }
+    return true;
   });
 
-  const getColor = (risk: string) => {
-    switch (risk) {
+  const getColor = (station: WaterStation) => {
+    if (station.zone_color) return station.zone_color;
+    if (station.water_level_m >= station.bank_level_m) return 'RED';
+    if (station.water_level_m >= station.bank_level_m * 0.8) return 'ORANGE';
+    if (station.water_level_m >= station.bank_level_m * 0.6) return 'YELLOW';
+    return 'GREEN';
+  };
+
+  const getColorHex = (color: string) => {
+    switch (color) {
       case 'RED': return '#ef4444';
       case 'ORANGE': return '#f97316';
       case 'YELLOW': return '#eab308';
@@ -120,7 +138,6 @@ export default function ZoneMap({
     }
   };
 
-  // พิกัดเป้าหมายสำหรับการบินของแผนที่
   const targetCoords = userLocation
     ? userLocation
     : searchedLocation
@@ -134,16 +151,16 @@ export default function ZoneMap({
       <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
         <div>
           <h3 className="font-bold text-md flex items-center gap-2">
-            🗺️ แผนผังความเสี่ยงและพิกัดการค้นหาจริง (Real-Time Map)
+            🗺️ แผนผังระดับน้ำจริง (คลอง / แม่น้ำ / ประตูระบายน้ำ)
           </h3>
           <p className="text-xs text-slate-400">
             {isSearching
-              ? '🔍 กำลังค้นหาพิกัดสถานที่จริง...'
+              ? '🔍 กำลังค้นหาตำแหน่งทางน้ำจริง...'
               : searchedLocation
-              ? `📍 พบตำแหน่งจริง: ${searchedLocation.displayName.split(',')[0]}`
+              ? `📍 พิกัดทางน้ำ/จุดค้นหา: ${searchedLocation.displayName.split(',')[0]}`
               : userLocation
               ? '📍 แสดงพิกัดปัจจุบันจาก GPS ของคุณ'
-              : `สถานีติดตามน้ำในพื้นที่: ${filteredStations.length} จุด`}
+              : `สถานีวัดน้ำจริงในระบบ: ${filteredStations.length} จุด`}
           </p>
         </div>
       </div>
@@ -157,12 +174,12 @@ export default function ZoneMap({
 
           <MapController targetCoords={targetCoords} />
 
-          {/* 📍 หมุดค้นหาพิกัดจริงจากการพิมพ์ Search */}
+          {/* หมุดปักพิกัดทางน้ำ / จุดที่ผู้ใช้ค้นหาจริง */}
           {searchedLocation && !userLocation && (
             <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={searchIcon}>
               <Popup>
                 <div className="p-1 min-w-[180px]">
-                  <span className="text-[10px] font-bold text-red-600 uppercase block">จุดที่คุณค้นหา</span>
+                  <span className="text-[10px] font-bold text-red-600 uppercase block">พิกัดทางน้ำ / จุดค้นหาจริง</span>
                   <h4 className="font-bold text-sm text-slate-900 mt-0.5">{searchedLocation.displayName.split(',')[0]}</h4>
                   <p className="text-xs text-slate-500 mt-1 line-clamp-2">{searchedLocation.displayName}</p>
                 </div>
@@ -170,7 +187,7 @@ export default function ZoneMap({
             </Marker>
           )}
 
-          {/* 📍 หมุด GPS ตำแหน่งปัจจุบัน */}
+          {/* หมุด GPS ตำแหน่งปัจจุบัน */}
           {userLocation && (
             <CircleMarker
               center={[userLocation.lat, userLocation.lng]}
@@ -185,26 +202,31 @@ export default function ZoneMap({
             </CircleMarker>
           )}
 
-          {/* 🟢🟡🟠🔴 หมุดสถานีวัดน้ำจริง */}
-          {filteredStations.map((station, idx) => (
-            <CircleMarker
-              key={idx}
-              center={[station.lat, station.lng]}
-              radius={13}
-              pathOptions={{ fillColor: getColor(station.zone_color), color: '#ffffff', weight: 2.5, fillOpacity: 0.85 }}
-            >
-              <Popup>
-                <div className="p-1 min-w-[180px]">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">{station.province}</span>
-                  <h4 className="font-bold text-sm text-slate-900 mt-0.5">{station.station_name}</h4>
-                  <p className="text-xs text-slate-600 my-1">ระดับน้ำ: {station.water_level_m} ม. (ตลิ่ง {station.bank_level_m} ม.)</p>
-                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 p-1.5 rounded-lg border border-blue-100 block">
-                    สถานะ: {station.flow_status}
-                  </span>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
+          {/* หมุดสถานีวัดระดับน้ำจริง */}
+          {filteredStations.map((station, idx) => {
+            const color = getColor(station);
+            return (
+              <CircleMarker
+                key={idx}
+                center={[station.lat, station.lng]}
+                radius={13}
+                pathOptions={{ fillColor: getColorHex(color), color: '#ffffff', weight: 2.5, fillOpacity: 0.85 }}
+              >
+                <Popup>
+                  <div className="p-1 min-w-[190px]">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">{station.province}</span>
+                    <h4 className="font-bold text-sm text-slate-900 mt-0.5">{station.station_name}</h4>
+                    <p className="text-xs text-slate-600 my-1">
+                      ระดับน้ำจริง: <strong>{station.water_level_m} ม.</strong> (ตลิ่ง {station.bank_level_m} ม.)
+                    </p>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 p-1.5 rounded-lg border border-blue-100 block mt-1">
+                      สถานะการระบาย: {station.flow_status}
+                    </span>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
         </MapContainer>
       </div>
     </div>

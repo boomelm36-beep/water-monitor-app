@@ -27,11 +27,9 @@ interface WaterData {
 
 export default function WaterDashboard() {
   const [data, setData] = useState<WaterData | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  // State สำหรับค้นหา ตัวกรองจังหวัด และตำแหน่งผู้ใช้ (GPS)
   const [selectedProvince, setSelectedProvince] = useState<string>('ปทุมธานี');
-  const [searchQuery, setSearchQuery] = useState<string>('รังสิต คลอง 4');
+  const [searchQuery, setSearchQuery] = useState<string>('คลองรังสิตประยูรศักดิ์ คลอง 4');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
 
@@ -42,15 +40,10 @@ export default function WaterDashboard() {
         if (resData.success) {
           setData(resData.data);
         }
-        setLoading(false);
       })
-      .catch((err) => {
-        console.error('Failed to fetch water data:', err);
-        setLoading(false);
-      });
+      .catch((err) => console.error('Failed to fetch water data:', err));
   }, []);
 
-  // 📍 ฟังก์ชันดึงตำแหน่งปัจจุบันจาก GPS
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งปัจจุบัน (GPS)');
@@ -68,7 +61,7 @@ export default function WaterDashboard() {
       },
       (error) => {
         console.error('Error getting location:', error);
-        alert('ไม่สามารถดึงตำแหน่งปัจจุบันได้ กรุณาอนุญาตการเข้าถึงสิทธิ์การระบุตำแหน่ง (Location Access)');
+        alert('ไม่สามารถดึงตำแหน่งปัจจุบันได้ กรุณาเปิดอนุญาตสิทธิ์การระบุตำแหน่ง');
         setIsLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -82,7 +75,7 @@ export default function WaterDashboard() {
     { id: 'ปทุมธานี', name: '🌊 ปทุมธานี (รังสิต/ลำลูกกา)' },
     { id: 'กรุงเทพมหานคร', name: '🏙️ กรุงเทพฯ (สายไหม/ดอนเมือง)' },
     { id: 'นนทบุรี', name: '⛵ นนทบุรี (ปากเกร็ด/เมืองนนท์)' },
-    { id: 'นครนายก', name: '🏞️ นครนายก' },
+    { id: 'นครนายก', name: '🏞️ นครนายก (องครักษ์)' },
   ];
 
   const isMatchFilter = (prov: string, text: string) => {
@@ -120,7 +113,7 @@ export default function WaterDashboard() {
 
       <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
-        {/* 🔍 ช่องค้นหา + ปุ่ม GPS ตำแหน่งปัจจุบัน */}
+        {/* ช่องค้นหาทางน้ำ + ปุ่ม GPS */}
         <section className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
@@ -131,7 +124,7 @@ export default function WaterDashboard() {
                   setSearchQuery(e.target.value);
                   setUserLocation(null);
                 }}
-                placeholder="🔍 พิมพ์ค้นหาพื้นที่ เช่น รังสิต คลอง 4, สายไหม, ท่าน้ำนนท์, พหลโยธิน..."
+                placeholder="🔍 พิมพ์ค้นหาคลอง แม่น้ำ ประตูระบายน้ำ หรือสถานที่..."
                 className="w-full pl-10 pr-24 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               />
               <span className="absolute left-3.5 top-3.5 text-slate-400">🔍</span>
@@ -148,7 +141,6 @@ export default function WaterDashboard() {
               )}
             </div>
 
-            {/* 📍 ปุ่มกดใช้ตำแหน่งปัจจุบัน (GPS) */}
             <button
               onClick={handleGetCurrentLocation}
               disabled={isLocating}
@@ -166,7 +158,7 @@ export default function WaterDashboard() {
                 onClick={() => {
                   setSelectedProvince(prov.id);
                   setUserLocation(null);
-                  if (prov.id === 'ปทุมธานี') setSearchQuery('รังสิต คลอง 4');
+                  if (prov.id === 'ปทุมธานี') setSearchQuery('คลองรังสิตประยูรศักดิ์ คลอง 4');
                   else setSearchQuery('');
                 }}
                 className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
@@ -181,16 +173,16 @@ export default function WaterDashboard() {
           </div>
         </section>
 
-        {/* 🗺️ แผนผังโซนความเสี่ยง (ส่ง userLocation ไปด้วย) */}
+        {/* แผนผังระดับน้ำจริง */}
         <ZoneMap selectedProvince={selectedProvince} searchQuery={searchQuery} userLocation={userLocation} />
 
-        {/* 🚘 ระบบเช็กเส้นทางเดินทางปลอดภัย */}
+        {/* ระบบเช็กเส้นทางจริง */}
         <RouteChecker />
 
-        {/* 📊 กราฟวิเคราะห์เทรนด์ระดับน้ำย้อนหลัง */}
+        {/* กราฟเทรนด์ระดับน้ำ */}
         <WaterChart />
 
-        {/* ⚡ สรุปสถานการณ์ด่วน (Quick Overview) */}
+        {/* สรุปสถานการณ์ด่วน */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
           <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
             ⚡ สรุปสถานการณ์ด่วน (Quick Overview)
@@ -219,7 +211,7 @@ export default function WaterDashboard() {
               <span className="text-xs text-slate-500 font-medium">สภาพถนนโดยรวม</span>
               <div className="text-2xl font-bold text-amber-900 mt-1">🟠 เฝ้าระวัง</div>
               <div className="text-xs mt-2 text-amber-700 font-medium">
-                เลียบคลองสี่ & ท่าน้ำนนท์ มีน้ำขัง
+                องครักษ์ปิดทาง / เลียบคลองสี่มีน้ำขัง
               </div>
             </div>
 
@@ -233,23 +225,29 @@ export default function WaterDashboard() {
           </div>
         </section>
 
-        {/* 📑 รายงานสถานการณ์เต็มตาม 17 หัวข้อ */}
+        {/* รายงานสถานการณ์ฉบับเต็ม */}
         <section className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-slate-900">
-              📊 รายงานสถานการณ์ 17 หัวข้อ ({searchQuery || selectedProvince})
+              📊 รายงานสถานการณ์และระดับน้ำ ({searchQuery || selectedProvince})
             </h2>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
 
-              {/* 1. 🚦 สถานการณ์โดยรวม & 2. ⚠️ สิ่งที่ต้องรู้ทันที */}
+              {/* สถานการณ์โดยรวม & สิ่งที่ต้องรู้ทันที */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <h3 className="text-md font-bold text-blue-900 border-b pb-2">
-                  1. 🚦 สถานการณ์โดยรวม & ⚠️ สิ่งที่ต้องรู้ทันทีในพื้นที่
+                  🚦 สถานการณ์โดยรวมและสิ่งสำคัญที่ต้องระวังในพื้นที่
                 </h3>
                 <ul className="space-y-2.5 text-sm text-slate-700">
+                  {isMatchFilter('นครนายก', 'องครักษ์ นครนายก') && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-500 font-bold">•</span>
+                      <span><strong>นครนายก / อ.องครักษ์:</strong> 🔴 <strong>น้ำท่วมสูงและปิดการจราจรบางช่วง</strong> บริเวณถนนรังสิต-นครนายก ช่วงองครักษ์ เจ้าหน้าที่กำลังเร่งสูบน้ำระบายลงคลอง</span>
+                    </li>
+                  )}
                   {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4 ลำลูกกา') && (
                     <li className="flex items-start gap-2">
                       <span className="text-amber-500 font-bold">•</span>
@@ -268,18 +266,12 @@ export default function WaterDashboard() {
                       <span><strong>นนทบุรี / ท่าน้ำนนท์:</strong> ให้ระวังน้ำเจ้าพระยาหนุนสูงช่วงเย็น เอ่อเข้าท่วมถนนขอบทางและพื้นที่นอกคันกั้นน้ำ</span>
                     </li>
                   )}
-                  {isMatchFilter('นครนายก', 'เมืองนครนายก') && (
-                    <li className="flex items-start gap-2">
-                      <span className="text-emerald-500 font-bold">•</span>
-                      <span><strong>นครนายก:</strong> แม่น้ำนครนายกระบายน้ำคล่องตัว มุ่งหน้าแม่น้ำบางปะกง ยังไม่มีจุดน้ำท่วมขังน่าห่วง</span>
-                    </li>
-                  )}
                 </ul>
               </div>
 
-              {/* 5. 🌧️ ปริมาณฝน & 6. 💧 ระดับน้ำในคลองหลัก */}
+              {/* ปริมาณฝน & ระดับน้ำในคลองหลัก */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 className="text-md font-bold text-blue-900 mb-4">5. 🌧️ ปริมาณฝน & 6. 💧 ตารางระดับน้ำรายสถานี</h3>
+                <h3 className="text-md font-bold text-blue-900 mb-4">🌧️ ปริมาณฝนและตารางระดับน้ำรายสถานี</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                     <thead className="bg-slate-100 text-slate-700 text-xs uppercase font-semibold">
@@ -292,6 +284,15 @@ export default function WaterDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
+                      {isMatchFilter('นครนายก', 'องครักษ์') && (
+                        <tr className="bg-red-50/50">
+                          <td className="p-3 font-medium text-slate-900">คลอง 29 / อ.องครักษ์ (นครนายก)</td>
+                          <td className="p-3 text-red-600 font-bold">2.85 ม.</td>
+                          <td className="p-3 text-slate-500">2.60 ม.</td>
+                          <td className="p-3 text-red-600 font-bold">+25 ซม.</td>
+                          <td className="p-3"><span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-bold">วิกฤต (ล้นตลิ่ง)</span></td>
+                        </tr>
+                      )}
                       {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4') && (
                         <tr>
                           <td className="p-3 font-medium text-slate-900">คลองรังสิตฯ (คลอง 4 ฝั่งตะวันออก)</td>
@@ -319,24 +320,25 @@ export default function WaterDashboard() {
                           <td className="p-3"><span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">ขึ้น (น้ำหนุน)</span></td>
                         </tr>
                       )}
-                      {isMatchFilter('นครนายก', 'เมืองนครนายก') && (
-                        <tr>
-                          <td className="p-3 font-medium text-slate-900">แม่น้ำนครนายก (เมืองนครนายก)</td>
-                          <td className="p-3">2.30 ม.</td>
-                          <td className="p-3 text-slate-500">2.30 ม.</td>
-                          <td className="p-3 text-slate-500 font-semibold">0 ซม.</td>
-                          <td className="p-3"><span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full">ทรงตัว</span></td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* 8. 🚗 น้ำท่วมถนนและการเดินทาง */}
+              {/* น้ำท่วมถนนและการเดินทาง */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="text-md font-bold text-blue-900 border-b pb-2">8. 🚗 สถานะถนนในพื้นที่ที่เลือก</h3>
+                <h3 className="text-md font-bold text-blue-900 border-b pb-2">🚗 สถานะเส้นทางจราจรในพื้นที่ที่เลือก</h3>
                 <div className="space-y-3">
+                  {isMatchFilter('นครนายก', 'องครักษ์') && (
+                    <div className="p-3.5 rounded-xl border border-red-200 bg-red-50/50">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold text-slate-800 text-sm">📍 ถนนรังสิต-นครนายก (ช่วง อ.องครักษ์)</span>
+                        <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded font-bold">🔴 น้ำท่วมสูง 35 ซม. / ปิดทางบางช่อง</span>
+                      </div>
+                      <p className="text-xs text-slate-700 mb-2">รถเก๋งและรถเล็กไม่สามารถผ่านได้ มีการปิดจราจรช่องทางซ้าย-กลาง อนุญาตเฉพาะรถบรรทุกและรถยกสูง</p>
+                    </div>
+                  )}
+
                   {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4') && (
                     <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/40">
                       <div className="flex justify-between items-center mb-1">
@@ -356,24 +358,14 @@ export default function WaterDashboard() {
                       <p className="text-xs text-slate-600 mb-2">รถเล็กควรหลีกเลี่ยงช่วงเวลา 16:00 - 19:00 น.</p>
                     </div>
                   )}
-
-                  {isMatchFilter('กรุงเทพมหานคร', 'วิภาวดี ดอนเมือง') && (
-                    <div className="p-3.5 rounded-xl border border-green-200 bg-green-50/40">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-bold text-slate-800 text-sm">📍 ถนนวิภาวดีรังสิต (ช่วงดอนเมือง-หลักสี่)</span>
-                        <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded font-semibold">🟢 ปกติ</span>
-                      </div>
-                      <p className="text-xs text-slate-600">ผ่านได้ตามปกติทุกช่องทาง การจราจรคล่องตัว</p>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* 13. 📊 เปรียบเทียบกับน้ำท่วมในอดีต (ปี 2554) */}
+              {/* เปรียบเทียบกับปี 2554 */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-2">
-                <h3 className="text-md font-bold text-blue-900 border-b pb-2">13. 📊 เปรียบเทียบกับน้ำท่วมปี 2554</h3>
+                <h3 className="text-md font-bold text-blue-900 border-b pb-2">📊 การเปรียบเทียบกับสถิติน้ำท่วมปี 2554</h3>
                 <p className="text-sm text-slate-700">
-                  <strong>สถานะปัจจุบัน:</strong> ต่ำกว่าปี 2554 อย่างมีนัยสำคัญ ปริมาณน้ำในคลองรังสิตฯ และคลองหกวายังต่ำกว่าปี 2554 อยู่ประมาณ <strong>1.70 - 1.85 เมตร</strong> การบริหารจัดการคันกั้นน้ำ กทม. และการระบายน้ำออกฝั่งตะวันออกยังทำได้ดี
+                  <strong>สถานะปัจจุบัน:</strong> ปริมาณน้ำในคลองรังสิตฯ และคลองหกวายังต่ำกว่าปี 2554 อยู่ประมาณ <strong>1.70 - 1.85 เมตร</strong> การบริหารจัดการคันกั้นน้ำและประตูระบายน้ำฝั่งตะวันออกยังคงเร่งระบายน้ำต่อเนื่อง
                 </p>
               </div>
 
@@ -382,72 +374,72 @@ export default function WaterDashboard() {
             {/* คอลัมน์ขวา */}
             <div className="space-y-6">
 
-              {/* 9. ⛔ เส้นทางหลีกเลี่ยง & 10. ✅ เส้นทางที่ใช้ได้ */}
+              {/* เส้นทางหลีกเลี่ยง */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-                <h3 className="text-md font-bold text-slate-900 border-b pb-2">🛣️ แนะนำการเดินทาง</h3>
+                <h3 className="text-md font-bold text-slate-900 border-b pb-2">🛣️ เส้นทางเลี่ยงแนะนำ</h3>
                 <div className="space-y-2 text-xs">
                   <div className="p-2 bg-red-50 text-red-700 rounded-lg">
-                    <strong>❌ ควรหลีกเลี่ยง:</strong> ถนนรอบท่าน้ำนนทบุรี (ช่วงน้ำหนุน 16:00 - 19:00 น.)
+                    <strong>❌ ควรหลีกเลี่ยง:</strong> ถนนรังสิต-นครนายก ช่วงองครักษ์ และถนนรอบท่าน้ำนนทบุรี
                   </div>
                   <div className="p-2 bg-green-50 text-green-700 rounded-lg">
-                    <strong>✅ เส้นทางเลี่ยง:</strong> ใช้ถนนเลี่ยงเมืองนนทบุรี หรือ ถนนวิภาวดีรังสิต
+                    <strong>✅ เส้นทางเลี่ยง:</strong> ใช้ทางหลวงหมายเลข 33 (สุวรรณศร) หรือทางด่วนอุตราภิมุข
                   </div>
                 </div>
               </div>
 
-              {/* 12. 🔮 แนวโน้ม 1–24 ชั่วโมง */}
+              {/* แนวโน้ม 1-24 ชั่วโมง */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-                <h3 className="text-md font-bold text-slate-900 border-b pb-2">12. 🔮 คาดการณ์แนวโน้มรายโซน</h3>
+                <h3 className="text-md font-bold text-slate-900 border-b pb-2">🔮 คาดการณ์แนวโน้มรายโซน</h3>
                 <div className="space-y-2 text-xs text-slate-700">
                   <div className="flex justify-between border-b pb-1">
-                    <span>1–3 ชั่วโมง (สายไหม/กทม.):</span>
+                    <span>องครักษ์ / นครนายก:</span>
+                    <span className="font-semibold text-red-600">วิกฤต (เร่งสูบระบายน้ำ)</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1">
+                    <span>สายไหม / กทม.:</span>
                     <span className="font-semibold text-amber-600">ฝนตกเล็กน้อย-ปานกลาง</span>
                   </div>
                   <div className="flex justify-between border-b pb-1">
-                    <span>3–6 ชั่วโมง (นนทบุรี):</span>
-                    <span className="font-semibold text-orange-600">น้ำหนุนเริ่มลดระดับลง</span>
-                  </div>
-                  <div className="flex justify-between border-b pb-1">
-                    <span>6–24 ชั่วโมง (รังสิต/นครนายก):</span>
-                    <span className="font-semibold text-green-600">ทรงตัว ระบายได้ดี</span>
+                    <span>นนทบุรี:</span>
+                    <span className="font-semibold text-orange-600">น้ำหนุนช่วงเย็นแล้วจะเริ่มลดลง</span>
                   </div>
                 </div>
               </div>
 
-              {/* 15. 📢 ข่าว & ประกาศล่าสุด */}
+              {/* ข่าวและประกาศล่าสุด */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="text-md font-bold text-slate-900 border-b pb-2">📢 ข่าว & ประกาศในพื้นที่</h3>
+                <h3 className="text-md font-bold text-slate-900 border-b pb-2">📢 ข่าวและประกาศเตือนภัยในพื้นที่</h3>
                 <div className="space-y-3 text-xs">
+                  {isMatchFilter('นครนายก', 'องครักษ์') && (
+                    <div className="border-l-2 border-red-500 pl-3">
+                      <p className="font-bold text-slate-800">ปภ.จังหวัดนครนายก / เทศบาลองครักษ์</p>
+                      <p className="text-slate-600 mt-0.5">ประกาศแจ้งเตือนน้ำท่วมเส้นทางสายหลักช่วงองครักษ์ แนะประชาชนใช้เส้นทางเลี่ยงและยกของขึ้นที่สูง</p>
+                      <span className="text-[10px] text-slate-400">15 นาทีที่แล้ว</span>
+                    </div>
+                  )}
                   {isMatchFilter('ปทุมธานี', 'รังสิต คลอง 4') && (
                     <div className="border-l-2 border-blue-500 pl-3">
                       <p className="font-bold text-slate-800">เทศบาลเมืองคลองหลวง / เทศบาลนครรังสิต</p>
                       <p className="text-slate-600 mt-0.5">เร่งเสริมเครื่องสูบน้ำบริเวณจุดตัดถนนเลียบคลองสี่ฝั่งตะวันออกดึงน้ำออกจากชุมชน</p>
-                      <span className="text-[10px] text-slate-400">10 นาทีที่แล้ว</span>
+                      <span className="text-[10px] text-slate-400">20 นาทีที่แล้ว</span>
                     </div>
                   )}
                   {isMatchFilter('กรุงเทพมหานคร', 'สายไหม') && (
                     <div className="border-l-2 border-emerald-500 pl-3">
                       <p className="font-bold text-slate-800">สำนักงานเขตสายไหม</p>
                       <p className="text-slate-600 mt-0.5">ประตูระบายน้ำคลองหกวาทำงานปกติ ระดับน้ำดียังควบคุมได้</p>
-                      <span className="text-[10px] text-slate-400">20 นาทีที่แล้ว</span>
-                    </div>
-                  )}
-                  {isMatchFilter('นนทบุรี', 'ท่าน้ำนนท์') && (
-                    <div className="border-l-2 border-amber-500 pl-3">
-                      <p className="font-bold text-slate-800">เทศบาลนครนนทบุรี</p>
-                      <p className="text-slate-600 mt-0.5">วางแนวกระสอบทรายเสริมคันกั้นน้ำริมแม่น้ำเจ้าพระยาบริเวณท่าน้ำนนท์</p>
-                      <span className="text-[10px] text-slate-400">35 นาทีที่แล้ว</span>
+                      <span className="text-[10px] text-slate-400">30 นาทีที่แล้ว</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* 17. 📚 แหล่งอ้างอิง */}
+              {/* แหล่งอ้างอิง */}
               <div className="bg-slate-100 p-4 rounded-xl text-xs text-slate-500 space-y-1">
                 <p className="font-bold text-slate-700">📚 แหล่งข้อมูลอ้างอิง:</p>
                 <p>• กรมชลประทาน / ThaiWater</p>
                 <p>• สำนักการระบายน้ำ กทม.</p>
-                <p>• กรมอุตุนิยมวิทยา & JS100 / FM91</p>
+                <p>• กรมอุตุนิยมวิทยา & ปภ. จังหวัด</p>
               </div>
 
             </div>
