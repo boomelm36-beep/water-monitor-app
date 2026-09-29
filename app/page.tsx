@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import RouteChecker from '@/components/RouteChecker';
 import WaterChart from '@/components/WaterChart';
 
-// Dynamic Import Leaflet Map เพื่อป้องกันปัญหา SSR ใน Next.js
 const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
   ssr: false,
   loading: () => (
@@ -15,7 +14,6 @@ const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
   ),
 });
 
-// Interface สำหรับรับข้อมูล API
 interface WaterData {
   rangsit: {
     current: { water_level_m: number; flow_status: string; measured_at: string; bank_level_m: number } | null;
@@ -31,11 +29,12 @@ export default function WaterDashboard() {
   const [data, setData] = useState<WaterData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ตั้งค่าพื้นที่แสดงผลเริ่มต้นเป็น ปทุมธานี และ รังสิต คลอง 4
+  // State สำหรับค้นหา ตัวกรองจังหวัด และตำแหน่งผู้ใช้ (GPS)
   const [selectedProvince, setSelectedProvince] = useState<string>('ปทุมธานี');
   const [searchQuery, setSearchQuery] = useState<string>('รังสิต คลอง 4');
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
 
-  // ดึงข้อมูล API เมื่อโหลดหน้าเว็บ
   useEffect(() => {
     fetch('/api/water-summary')
       .then((res) => res.json())
@@ -51,6 +50,31 @@ export default function WaterDashboard() {
       });
   }, []);
 
+  // 📍 ฟังก์ชันดึงตำแหน่งปัจจุบันจาก GPS
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งปัจจุบัน (GPS)');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        setSelectedProvince('ALL');
+        setSearchQuery('📍 ตำแหน่งปัจจุบันของคุณ');
+        setIsLocating(false);
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        alert('ไม่สามารถดึงตำแหน่งปัจจุบันได้ กรุณาอนุญาตการเข้าถึงสิทธิ์การระบุตำแหน่ง (Location Access)');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const currentTime = new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
 
   const provinces = [
@@ -61,8 +85,8 @@ export default function WaterDashboard() {
     { id: 'นครนายก', name: '🏞️ นครนายก' },
   ];
 
-  // ฟังก์ชันช่วยเช็กว่าเนื้อหานั้นตรงกับที่ Search หรือ Province หรือไม่
   const isMatchFilter = (prov: string, text: string) => {
+    if (userLocation || searchQuery.includes('ตำแหน่งปัจจุบัน')) return true;
     if (selectedProvince !== 'ALL' && prov !== selectedProvince) return false;
     if (searchQuery.trim() !== '') {
       const q = searchQuery.toLowerCase().trim();
@@ -74,7 +98,7 @@ export default function WaterDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       
-      {/* 🟢 Header / สรุปภาพรวมส่วนหัว */}
+      {/* Header */}
       <header className="bg-blue-900 text-white py-6 px-4 shadow-md">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -87,7 +111,7 @@ export default function WaterDashboard() {
           <div className="bg-blue-800/80 backdrop-blur border border-blue-700 p-4 rounded-xl text-center min-w-[220px]">
             <span className="text-xs text-blue-200 block uppercase font-semibold">พื้นที่ติดตามปัจจุบัน</span>
             <span className="text-xl font-bold text-yellow-400 block my-1">
-              {searchQuery ? `🔍 ${searchQuery}` : selectedProvince}
+              {searchQuery ? `${searchQuery}` : selectedProvince}
             </span>
             <span className="text-xs text-blue-100">สถานะ: 🟡 เฝ้าระวัง</span>
           </div>
@@ -96,25 +120,43 @@ export default function WaterDashboard() {
 
       <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
-        {/* 🔍 ช่องค้นหาพื้นที่ และ ตัวกรองเลือกจังหวัด */}
+        {/* 🔍 ช่องค้นหา + ปุ่ม GPS ตำแหน่งปัจจุบัน */}
         <section className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 พิมพ์ค้นหาพื้นที่ เช่น รังสิต คลอง 4, สายไหม, ท่าน้ำนนท์, พหลโยธิน..."
-              className="w-full pl-10 pr-24 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-            />
-            <span className="absolute left-3.5 top-3.5 text-slate-400">🔍</span>
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-xs bg-slate-200 text-slate-700 hover:bg-slate-300 px-3 py-1.5 rounded-lg font-medium transition-all"
-              >
-                ล้างคำค้น
-              </button>
-            )}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setUserLocation(null);
+                }}
+                placeholder="🔍 พิมพ์ค้นหาพื้นที่ เช่น รังสิต คลอง 4, สายไหม, ท่าน้ำนนท์, พหลโยธิน..."
+                className="w-full pl-10 pr-24 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              />
+              <span className="absolute left-3.5 top-3.5 text-slate-400">🔍</span>
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setUserLocation(null);
+                  }}
+                  className="absolute right-3 top-2.5 text-xs bg-slate-200 text-slate-700 hover:bg-slate-300 px-3 py-1.5 rounded-lg font-medium transition-all"
+                >
+                  ล้างคำค้น
+                </button>
+              )}
+            </div>
+
+            {/* 📍 ปุ่มกดใช้ตำแหน่งปัจจุบัน (GPS) */}
+            <button
+              onClick={handleGetCurrentLocation}
+              disabled={isLocating}
+              className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-900 hover:bg-blue-800 text-white font-semibold text-xs rounded-xl transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+            >
+              <span>📍</span>
+              <span>{isLocating ? 'กำลังค้นหาพิกัด...' : 'ใช้ตำแหน่งปัจจุบันของคุณ'}</span>
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -123,11 +165,12 @@ export default function WaterDashboard() {
                 key={prov.id}
                 onClick={() => {
                   setSelectedProvince(prov.id);
+                  setUserLocation(null);
                   if (prov.id === 'ปทุมธานี') setSearchQuery('รังสิต คลอง 4');
                   else setSearchQuery('');
                 }}
                 className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
-                  selectedProvince === prov.id
+                  selectedProvince === prov.id && !userLocation
                     ? 'bg-blue-900 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
@@ -138,8 +181,8 @@ export default function WaterDashboard() {
           </div>
         </section>
 
-        {/* 🗺️ แผนผังโซนความเสี่ยง (Interactive Leaflet Map) */}
-        <ZoneMap selectedProvince={selectedProvince} searchQuery={searchQuery} />
+        {/* 🗺️ แผนผังโซนความเสี่ยง (ส่ง userLocation ไปด้วย) */}
+        <ZoneMap selectedProvince={selectedProvince} searchQuery={searchQuery} userLocation={userLocation} />
 
         {/* 🚘 ระบบเช็กเส้นทางเดินทางปลอดภัย */}
         <RouteChecker />
@@ -153,8 +196,6 @@ export default function WaterDashboard() {
             ⚡ สรุปสถานการณ์ด่วน (Quick Overview)
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* ระดับน้ำ */}
             <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100">
               <span className="text-xs text-slate-500 font-medium">คลองรังสิตประยูรศักดิ์</span>
               <div className="text-2xl font-bold text-blue-900 mt-1">
@@ -166,7 +207,6 @@ export default function WaterDashboard() {
               </div>
             </div>
 
-            {/* ปริมาณฝน */}
             <div className="p-4 rounded-xl bg-cyan-50/50 border border-cyan-100">
               <span className="text-xs text-slate-500 font-medium">ฝนสะสม 1 ชม. ล่าสุด</span>
               <div className="text-2xl font-bold text-cyan-900 mt-1">5.0 มม.</div>
@@ -175,7 +215,6 @@ export default function WaterDashboard() {
               </div>
             </div>
 
-            {/* การจราจร */}
             <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-100">
               <span className="text-xs text-slate-500 font-medium">สภาพถนนโดยรวม</span>
               <div className="text-2xl font-bold text-amber-900 mt-1">🟠 เฝ้าระวัง</div>
@@ -184,7 +223,6 @@ export default function WaterDashboard() {
               </div>
             </div>
 
-            {/* การระบายน้ำ */}
             <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
               <span className="text-xs text-slate-500 font-medium">สถานีสูบน้ำหลัก</span>
               <div className="text-2xl font-bold text-emerald-900 mt-1">เปิดระบาย</div>
@@ -192,11 +230,10 @@ export default function WaterDashboard() {
                 ปตร.จุฬาลงกรณ์ & คลองหกวา เดินเครื่องปกติ
               </div>
             </div>
-
           </div>
         </section>
 
-        {/* 📑 รายงานสถานการณ์เต็มตาม 17 หัวข้อ (Dynamic กรองตามพื้นที่) */}
+        {/* 📑 รายงานสถานการณ์เต็มตาม 17 หัวข้อ */}
         <section className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-slate-900">
@@ -205,8 +242,6 @@ export default function WaterDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* คอลัมน์ซ้าย: สถานการณ์ฝน + น้ำ + ตารางระดับน้ำ */}
             <div className="lg:col-span-2 space-y-6">
 
               {/* 1. 🚦 สถานการณ์โดยรวม & 2. ⚠️ สิ่งที่ต้องรู้ทันที */}
@@ -344,7 +379,7 @@ export default function WaterDashboard() {
 
             </div>
 
-            {/* คอลัมน์ขวา: การเตือนภัย ข่าว และจุดเฝ้าระวัง */}
+            {/* คอลัมน์ขวา */}
             <div className="space-y-6">
 
               {/* 9. ⛔ เส้นทางหลีกเลี่ยง & 10. ✅ เส้นทางที่ใช้ได้ */}
@@ -416,7 +451,6 @@ export default function WaterDashboard() {
               </div>
 
             </div>
-
           </div>
         </section>
 

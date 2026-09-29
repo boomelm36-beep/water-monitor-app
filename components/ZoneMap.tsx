@@ -1,164 +1,115 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-// ✅ นำเข้า Component และ Hook จาก react-leaflet โดยตรง
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 
-export interface LocationZone {
-  id: string;
-  name: string;
-  province: 'กรุงเทพมหานคร' | 'นนทบุรี' | 'ปทุมธานี' | 'นครนายก';
+// ปรับแต่ง Icon สำหรับหมุดค้นหาจริง
+const searchIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+export interface StationData {
+  id?: number;
+  station_name: string;
+  water_level_m: number;
+  bank_level_m: number;
+  flow_status: string;
+  province: string;
   lat: number;
   lng: number;
-  riskLevel: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
-  details: string;
-  waterLevelDelta: string;
-  keywords: string;
+  zone_color: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
 }
 
-// 📍 รายชื่อหมุดความเสี่ยง
-export const ZONE_LOCATIONS: LocationZone[] = [
-  {
-    id: 'p1',
-    name: 'รังสิต คลอง 4 (ถนนเลียบคลองสี่ฝั่งตะวันออก)',
-    province: 'ปทุมธานี',
-    lat: 13.9885,
-    lng: 100.6858,
-    riskLevel: 'YELLOW',
-    details: 'เฝ้าระวังระดับน้ำขังถนนเลียบคลองสี่ฝั่งตะวันออก และทางเข้าหมู่บ้าน',
-    waterLevelDelta: '+5 ซม.',
-    keywords: 'รังสิต คลอง 4 คลองสี่ เลียบคลอง4 เลียบคลองสี่ ฝั่งตะวันออก ปทุมธานี ลำลูกกา',
-  },
-  {
-    id: 'p2',
-    name: 'ประตูระบายน้ำจุฬาลงกรณ์ (คลองรังสิตฯ)',
-    province: 'ปทุมธานี',
-    lat: 13.9875,
-    lng: 100.6158,
-    riskLevel: 'ORANGE',
-    details: 'เดินเครื่องสูบน้ำเต็มกำลัง เร่งดึงน้ำลงสู่แม่น้ำเจ้าพระยา',
-    waterLevelDelta: '+8 ซม.',
-    keywords: 'จุฬาลงกรณ์ รังสิต คลอง1 ตลาดรังสิต สะพานแดง ปทุมธานี',
-  },
-  {
-    id: 'p3',
-    name: 'ลำลูกกา คลอง 4 (ถนนเลียบคลอง 4)',
-    province: 'ปทุมธานี',
-    lat: 13.9312,
-    lng: 100.6812,
-    riskLevel: 'YELLOW',
-    details: 'มีน้ำท่วมขังขอบทาง 10-15 ซม. สภาพการจราจรชะลอตัว',
-    waterLevelDelta: '+4 ซม.',
-    keywords: 'ลำลูกกา คลอง 4 คลองสี่ พฤกษา สายใต้ ปทุมธานี',
-  },
-  {
-    id: 'b1',
-    name: 'เขตสายไหม (ประตูระบายน้ำคลองหกวา)',
-    province: 'กรุงเทพมหานคร',
-    lat: 13.9142,
-    lng: 100.6482,
-    riskLevel: 'YELLOW',
-    details: 'ระดับน้ำคลองหกวาเพิ่มขึ้นช้าๆ ยังต่ำกว่าระดับตลิ่ง',
-    waterLevelDelta: '+3 ซม.',
-    keywords: 'สายไหม คลองหกวา หกวา สุขาภิบาล5 กรุงเทพ กทม BKK',
-  },
-  {
-    id: 'b2',
-    name: 'เขตดอนเมือง (ถนนวิภาวดีรังสิต)',
-    province: 'กรุงเทพมหานคร',
-    lat: 13.9130,
-    lng: 100.6041,
-    riskLevel: 'GREEN',
-    details: 'การจราจรปกติ เร่งระบายน้ำขังช่องทางขนาน',
-    waterLevelDelta: '0 ซม.',
-    keywords: 'ดอนเมือง วิภาวดี สนามบินดอนเมือง โทลล์เวย์ กรุงเทพ กทม',
-  },
-  {
-    id: 'b3',
-    name: 'เขตบางเขน (วงเวียนบางเขน / พหลโยธิน)',
-    province: 'กรุงเทพมหานคร',
-    lat: 13.8745,
-    lng: 100.5969,
-    riskLevel: 'YELLOW',
-    details: 'มีน้ำขังรอการระบายเล็กน้อยบริเวณวงเวียน',
-    waterLevelDelta: '+2 ซม.',
-    keywords: 'บางเขน วงเวียนบางเขน พหลโยธิน รามอินทรา กรุงเทพ กทม',
-  },
-  {
-    id: 'n1',
-    name: 'ท่าน้ำนนทบุรี (แม่น้ำเจ้าพระยา)',
-    province: 'นนทบุรี',
-    lat: 13.8415,
-    lng: 100.4912,
-    riskLevel: 'ORANGE',
-    details: 'น้ำเจ้าพระยาหนุนสูงช่วงเย็น เอ่อเข้าท่วมพื้นที่นอกคันกั้นน้ำ',
-    waterLevelDelta: '+12 ซม.',
-    keywords: 'ท่าน้ำนนท์ นนทบุรี พิบูลสงคราม เจ้าพระยา เมืองนนท์',
-  },
-  {
-    id: 'n2',
-    name: 'ปากเกร็ด / คลองบ้านใหม่',
-    province: 'นนทบุรี',
-    lat: 13.9127,
-    lng: 100.4981,
-    riskLevel: 'YELLOW',
-    details: 'เฝ้าระวังระดับน้ำเอ่อล้นเข้าชุมชนริมคลอง',
-    waterLevelDelta: '+5 ซม.',
-    keywords: 'ปากเกร็ด แจ้งวัฒนะ นนทบุรี คลองบ้านใหม่',
-  },
-  {
-    id: 'ny1',
-    name: 'อ.เมืองนครนายก (แม่น้ำนครนายก)',
-    province: 'นครนายก',
-    lat: 14.2069,
-    lng: 101.2131,
-    riskLevel: 'GREEN',
-    details: 'การระบายน้ำมุ่งหน้าบางปะกงยังทำได้ดี ไม่มีน้ำท่วมขัง',
-    waterLevelDelta: '-2 ซม.',
-    keywords: 'นครนายก เมืองนครนายก แม่น้ำนครนายก เขื่อนขุนด่าน',
-  },
-];
-
-// 🛸 Component ควบคุมเลื่อนหน้าจอแผนที่
-function MapFlyController({ zones }: { zones: LocationZone[] }) {
-  const map = useMap(); // เรียกใช้ useMap ได้ตามปกติ
+// 🛸 Component ควบคุมให้แผนที่บิน (FlyTo) ไปยังหมุดค้นหาจริงหรือตำแหน่งผู้ใช้
+function MapController({ targetCoords, zoom = 14 }: { targetCoords: { lat: number; lng: number } | null; zoom?: number }) {
+  const map = useMap();
 
   useEffect(() => {
-    if (zones && zones.length > 0) {
-      const target = zones[0];
-      const zoomLevel = zones.length === 1 ? 14 : 11;
-      map.flyTo([target.lat, target.lng], zoomLevel, {
-        duration: 1.2,
-      });
+    if (targetCoords) {
+      map.flyTo([targetCoords.lat, targetCoords.lng], zoom, { duration: 1.5 });
     }
-  }, [zones, map]);
+  }, [targetCoords, zoom, map]);
 
   return null;
 }
 
-export default function ZoneMap({ selectedProvince, searchQuery }: { selectedProvince: string; searchQuery: string }) {
-  const [filteredZones, setFilteredZones] = useState<LocationZone[]>(ZONE_LOCATIONS);
+export default function ZoneMap({
+  selectedProvince,
+  searchQuery,
+  userLocation,
+}: {
+  selectedProvince: string;
+  searchQuery: string;
+  userLocation: { lat: number; lng: number } | null;
+}) {
+  const [stations, setStations] = useState<StationData[]>([]);
+  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; displayName: string } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
+  // 1. ดึงข้อมูลหมุดสถานีวัดน้ำจริงจาก Supabase ผ่าน API
   useEffect(() => {
-    let result = ZONE_LOCATIONS;
+    fetch('/api/water-summary')
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData.success && resData.data?.stations) {
+          setStations(resData.data.stations);
+        } else {
+          // Fallback สถานีหลักถ้าระบบเพิ่งเริ่ม
+          setStations([
+            { station_name: 'รังสิต คลอง 4 (ถนนเลียบคลองสี่ฝั่งตะวันออก)', water_level_m: 1.45, bank_level_m: 2.50, flow_status: 'ปกติ', province: 'ปทุมธานี', lat: 13.9885, lng: 100.6858, zone_color: 'YELLOW' },
+            { station_name: 'ปตร.จุฬาลงกรณ์', water_level_m: 1.85, bank_level_m: 2.20, flow_status: 'เร่งระบาย', province: 'ปทุมธานี', lat: 13.9875, lng: 100.6158, zone_color: 'ORANGE' },
+            { station_name: 'ปตร.คลองหกวา (สายไหม)', water_level_m: 1.10, bank_level_m: 2.00, flow_status: 'ปกติ', province: 'กรุงเทพมหานคร', lat: 13.9142, lng: 100.6482, zone_color: 'GREEN' },
+            { station_name: 'ท่าน้ำนนทบุรี', water_level_m: 2.10, bank_level_m: 2.30, flow_status: 'น้ำหนุน', province: 'นนทบุรี', lat: 13.8415, lng: 100.4912, zone_color: 'ORANGE' },
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-    if (selectedProvince !== 'ALL') {
-      result = result.filter(z => z.province === selectedProvince);
+  // 2. ค้นหาพิกัดจริงบนแผนที่โลกเมื่อมีการพิมพ์ Search (Nominatim Geocoding API)
+  useEffect(() => {
+    if (!searchQuery || searchQuery.trim() === '' || searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+      setSearchedLocation(null);
+      return;
     }
 
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(z =>
-        z.name.toLowerCase().includes(q) ||
-        z.details.toLowerCase().includes(q) ||
-        z.province.toLowerCase().includes(q) ||
-        z.keywords.toLowerCase().includes(q)
-      );
-    }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        // ค้นหาพิกัดสถานที่ในไทยจริงจาก OpenStreetMap
+        const query = encodeURIComponent(`${searchQuery} ประเทศไทย`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+        const data = await res.json();
 
-    setFilteredZones(result);
-  }, [selectedProvince, searchQuery]);
+        if (data && data.length > 0) {
+          setSearchedLocation({
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+            displayName: data[0].display_name,
+          });
+        }
+      } catch (err) {
+        console.error('Geocoding error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 800); // Debounce ป้องกันการยิง API ถี่เกินไป
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // กรองหมุดสถานีตามจังหวัด
+  const filteredStations = stations.filter((s) => {
+    if (selectedProvince === 'ALL') return true;
+    return s.province === selectedProvince;
+  });
 
   const getColor = (risk: string) => {
     switch (risk) {
@@ -169,23 +120,31 @@ export default function ZoneMap({ selectedProvince, searchQuery }: { selectedPro
     }
   };
 
+  // พิกัดเป้าหมายสำหรับการบินของแผนที่
+  const targetCoords = userLocation
+    ? userLocation
+    : searchedLocation
+    ? { lat: searchedLocation.lat, lng: searchedLocation.lng }
+    : filteredStations.length > 0
+    ? { lat: filteredStations[0].lat, lng: filteredStations[0].lng }
+    : { lat: 13.9885, lng: 100.6858 };
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
         <div>
           <h3 className="font-bold text-md flex items-center gap-2">
-            🗺️ แผนผังแสดงความเสี่ยงโซนน้ำท่วม (Color-Coded Zoning Map)
+            🗺️ แผนผังความเสี่ยงและพิกัดการค้นหาจริง (Real-Time Map)
           </h3>
           <p className="text-xs text-slate-400">
-            {filteredZones.length > 0 ? `พบหมุดสถานที่ ${filteredZones.length} จุด` : '❌ ไม่พบหมุดสถานที่ที่ค้นหา'}
+            {isSearching
+              ? '🔍 กำลังค้นหาพิกัดสถานที่จริง...'
+              : searchedLocation
+              ? `📍 พบตำแหน่งจริง: ${searchedLocation.displayName.split(',')[0]}`
+              : userLocation
+              ? '📍 แสดงพิกัดปัจจุบันจาก GPS ของคุณ'
+              : `สถานีติดตามน้ำในพื้นที่: ${filteredStations.length} จุด`}
           </p>
-        </div>
-        
-        <div className="hidden md:flex gap-3 text-xs">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> ปกติ</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-500"></span> เฝ้าระวัง</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500"></span> เสี่ยงสูง</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500"></span> วิกฤต</span>
         </div>
       </div>
 
@@ -196,23 +155,52 @@ export default function ZoneMap({ selectedProvince, searchQuery }: { selectedPro
             attribution='&copy; OpenStreetMap contributors'
           />
 
-          <MapFlyController zones={filteredZones} />
+          <MapController targetCoords={targetCoords} />
 
-          {filteredZones.map((zone) => (
+          {/* 📍 หมุดค้นหาพิกัดจริงจากการพิมพ์ Search */}
+          {searchedLocation && !userLocation && (
+            <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={searchIcon}>
+              <Popup>
+                <div className="p-1 min-w-[180px]">
+                  <span className="text-[10px] font-bold text-red-600 uppercase block">จุดที่คุณค้นหา</span>
+                  <h4 className="font-bold text-sm text-slate-900 mt-0.5">{searchedLocation.displayName.split(',')[0]}</h4>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{searchedLocation.displayName}</p>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* 📍 หมุด GPS ตำแหน่งปัจจุบัน */}
+          {userLocation && (
             <CircleMarker
-              key={zone.id}
-              center={[zone.lat, zone.lng]}
-              radius={14}
-              pathOptions={{ fillColor: getColor(zone.riskLevel), color: '#ffffff', weight: 2.5, fillOpacity: 0.85 }}
+              center={[userLocation.lat, userLocation.lng]}
+              radius={10}
+              pathOptions={{ fillColor: '#2563eb', color: '#ffffff', weight: 3, fillOpacity: 0.95 }}
+            >
+              <Popup>
+                <div className="p-1 text-center">
+                  <h4 className="font-bold text-sm text-slate-900">📍 ตำแหน่งปัจจุบันของคุณ</h4>
+                </div>
+              </Popup>
+            </CircleMarker>
+          )}
+
+          {/* 🟢🟡🟠🔴 หมุดสถานีวัดน้ำจริง */}
+          {filteredStations.map((station, idx) => (
+            <CircleMarker
+              key={idx}
+              center={[station.lat, station.lng]}
+              radius={13}
+              pathOptions={{ fillColor: getColor(station.zone_color), color: '#ffffff', weight: 2.5, fillOpacity: 0.85 }}
             >
               <Popup>
                 <div className="p-1 min-w-[180px]">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">{zone.province}</span>
-                  <h4 className="font-bold text-sm text-slate-900 mt-0.5">{zone.name}</h4>
-                  <p className="text-xs text-slate-600 my-1.5">{zone.details}</p>
-                  <div className="text-xs font-semibold text-blue-600 bg-blue-50 p-1.5 rounded-lg border border-blue-100">
-                    การเปลี่ยนแปลง (1 ชม.): {zone.waterLevelDelta}
-                  </div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">{station.province}</span>
+                  <h4 className="font-bold text-sm text-slate-900 mt-0.5">{station.station_name}</h4>
+                  <p className="text-xs text-slate-600 my-1">ระดับน้ำ: {station.water_level_m} ม. (ตลิ่ง {station.bank_level_m} ม.)</p>
+                  <span className="text-xs font-semibold text-blue-600 bg-blue-50 p-1.5 rounded-lg border border-blue-100 block">
+                    สถานะ: {station.flow_status}
+                  </span>
                 </div>
               </Popup>
             </CircleMarker>
