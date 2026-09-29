@@ -1,0 +1,14 @@
+name: Hourly Water Data Fetch
+on:
+  schedule:
+    - cron: '0 * * * *' # รันทุกๆ นาทีที่ 0 ของทุกชั่วโมง (อิงตามเวลา UTC)
+  workflow_dispatch: # ปุ่มกดรันแบบ Manual
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Next.js Cron API
+        run: |
+          curl -X GET "https://ชื่อเว็บของคุณ.netlify.app/api/cron" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
