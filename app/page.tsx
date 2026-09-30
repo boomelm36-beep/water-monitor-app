@@ -136,45 +136,48 @@ export default function WaterDashboard() {
   ];
 
   // กรองรายการประกาศเตือนภัยความเสี่ยงตามพื้นที่ที่เลือก
-  const filteredAlerts = (liveData?.alerts || []).filter((a) => {
-    if (selectedProvince !== 'ALL' && a.province !== selectedProvince) return false;
-    if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
-      const q = searchQuery.toLowerCase().trim();
-      return (
-        a.area_name.toLowerCase().includes(q) ||
-        a.province.toLowerCase().includes(q) ||
-        a.description.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+// กรองรายการประกาศเตือนภัย
+const filteredAlerts = (liveData?.alerts || []).filter((a) => {
+  if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
+  if (selectedProvince !== 'ALL' && a.province !== selectedProvince) return false;
+  if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      a.area_name.toLowerCase().includes(q) ||
+      a.province.toLowerCase().includes(q) ||
+      a.description.toLowerCase().includes(q)
+    );
+  }
+  return true;
+});
 
-  // กรองรายการสถานีวัดน้ำตามพื้นที่ที่เลือก
-  const filteredStations = (liveData?.stations || []).filter((s) => {
-    if (selectedProvince !== 'ALL' && s.province !== selectedProvince) return false;
-    if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
-      const q = searchQuery.toLowerCase().trim();
-      return (
-        s.station_name.toLowerCase().includes(q) ||
-        s.province.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-
-  // กรองรายการสภาพการจราจรตามพื้นที่ที่เลือก
-  const filteredTraffic = (liveData?.traffic || []).filter((t) => {
-    if (selectedProvince !== 'ALL' && t.province !== selectedProvince) return false;
-    if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
-      const q = searchQuery.toLowerCase().trim();
-      return (
-        t.road_name.toLowerCase().includes(q) ||
-        t.province.toLowerCase().includes(q) ||
-        t.district.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  // กรองรายการสถานีวัดน้ำ
+const filteredStations = (liveData?.stations || []).filter((s) => {
+  if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
+  if (selectedProvince !== 'ALL' && s.province !== selectedProvince) return false;
+  if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      s.station_name.toLowerCase().includes(q) ||
+      s.province.toLowerCase().includes(q)
+    );
+  }
+  return true;
+});
+// กรองรายการสภาพการจราจร
+const filteredTraffic = (liveData?.traffic || []).filter((t) => {
+  if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
+  if (selectedProvince !== 'ALL' && t.province !== selectedProvince) return false;
+  if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      t.road_name.toLowerCase().includes(q) ||
+      t.province.toLowerCase().includes(q) ||
+      t.district.toLowerCase().includes(q)
+    );
+  }
+  return true;
+});
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
