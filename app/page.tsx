@@ -5,6 +5,13 @@ import dynamic from 'next/dynamic';
 import RouteChecker from '@/components/RouteChecker';
 import WaterChart from '@/components/WaterChart';
 
+
+const [mounted, setMounted] = useState(false);
+
+useEffect(() => {
+  setMounted(true);
+}, []);
+
 // Dynamic Import Leaflet ZoneMap เพื่อป้องกันปัญหา Server-Side Rendering (SSR)
 const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
   ssr: false,
@@ -192,6 +199,9 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
             <h1 className="text-2xl md:text-3xl font-bold">ศูนย์เฝ้าระวังน้ำและแจ้งเตือนภัยจราจร</h1>
             <p className="text-blue-200 text-sm mt-1">ข้อมูลอัปเดตจากระบบ: {currentTime} น.</p>
           </div>
+          <p className="text-blue-200 text-sm mt-1" suppressHydrationWarning>
+            ข้อมูลอัปเดตจากระบบ: {mounted ? currentTime : 'กำลังประมวลผล...'} น.
+          </p>
           <div className="bg-blue-800/80 backdrop-blur border border-blue-700 p-4 rounded-xl text-center min-w-[220px]">
             <span className="text-xs text-blue-200 block uppercase font-semibold">พื้นที่ติดตามปัจจุบัน</span>
             <span className="text-xl font-bold text-yellow-400 block my-1">
@@ -206,7 +216,7 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
           </div>
         </div>
       </header>
-
+      
       <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
         {/* 🔍 ช่องค้นหาพื้นที่ + ปุ่ม GPS */}

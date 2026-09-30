@@ -5,7 +5,6 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Marker, useMap } from 're
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// Icon สำหรับหมุดค้นหาพิกัดจริง
 const searchIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -22,16 +21,23 @@ export interface WaterStation {
   bank_level_m: number;
   flow_status: string;
   province: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   zone_color?: 'GREEN' | 'YELLOW' | 'ORANGE' | 'RED';
 }
 
-function MapController({ targetCoords, zoom = 14 }: { targetCoords: { lat: number; lng: number } | null; zoom?: number }) {
+function MapController({ targetCoords, zoom = 13 }: { targetCoords: { lat: number; lng: number } | null; zoom?: number }) {
   const map = useMap();
 
   useEffect(() => {
-    if (targetCoords) {
+    // เช็กพิกัดเป้าหมาย ป้องกัน NaN / undefined
+    if (
+      targetCoords &&
+      typeof targetCoords.lat === 'number' &&
+      typeof targetCoords.lng === 'number' &&
+      !isNaN(targetCoords.lat) &&
+      !isNaN(targetCoords.lng)
+    ) {
       map.flyTo([targetCoords.lat, targetCoords.lng], zoom, { duration: 1.5 });
     }
   }, [targetCoords, zoom, map]);
@@ -52,7 +58,6 @@ export default function ZoneMap({
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number; displayName: string } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // 1. ดึงข้อมูลสถานีวัดระดับน้ำจริงจาก API
   useEffect(() => {
     fetch('/api/water-summary')
       .then((res) => res.json())
@@ -64,7 +69,6 @@ export default function ZoneMap({
       .catch((err) => console.error('Failed to load stations:', err));
   }, []);
 
-  // 2. ค้นหาพิกัดจริงของ คลอง / แม่น้ำ / ประตูระบายน้ำ / สถานีสูบน้ำ จาก OpenStreetMap Nominatim
   useEffect(() => {
     if (!searchQuery || searchQuery.trim() === '' || searchQuery.includes('ตำแหน่งปัจจุบัน')) {
       setSearchedLocation(null);
@@ -75,7 +79,6 @@ export default function ZoneMap({
       setIsSearching(true);
       try {
         const cleanQuery = searchQuery.trim();
-        // เน้นคำค้นหาเจาะจงทางน้ำ
         const queryWithWater = cleanQuery.match(/(คลอง|แม่น้ำ|ประตูระบายน้ำ|ปตร|สถานีสูบน้ำ)/)
           ? `${cleanQuery} ประเทศไทย`
           : `คลอง ${cleanQuery} ประเทศไทย`;
@@ -83,18 +86,17 @@ export default function ZoneMap({
         let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryWithWater)}&limit=1`);
         let data = await res.json();
 
-        // หากค้นหาทางน้ำเจาะจงไม่เจอ ให้ค้นหาชื่อสถานที่ทั่วไปในไทย
         if (!data || data.length === 0) {
           res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(`${cleanQuery} ประเทศไทย`)}&limit=1`);
           data = await res.json();
         }
 
         if (data && data.length > 0) {
-          setSearchedLocation({
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon),
-            displayName: data[0].display_name,
-          });
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            setSearchedLocation({ lat, lng, displayName: data[0].display_name });
+          }
         }
       } catch (err) {
         console.error('Geocoding error:', err);
@@ -106,17 +108,18 @@ export default function ZoneMap({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // กรองเฉพาะสถานีจริงตามจังหวัด หรือชื่อสายน้ำ
+  // กรองเฉพาะสถานีที่มีพิกัดถูกต้องจริงเท่านั้น
   const filteredStations = stations.filter((s) => {
+    const lat = Number(s.lat);
+    const lng = Number(s.lng);
+    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return false;
+
     const matchesProvince = selectedProvince === 'ALL' || s.province === selectedProvince;
     if (!matchesProvince) return false;
 
     if (searchQuery && searchQuery.trim() !== '' && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
       const q = searchQuery.toLowerCase().trim();
-      return (
-        s.station_name.toLowerCase().includes(q) ||
-        s.province.toLowerCase().includes(q)
-      );
+      return s.station_name.toLowerCase().includes(q) || s.province.toLowerCase().includes(q);
     }
     return true;
   });
@@ -138,13 +141,16 @@ export default function ZoneMap({
     }
   };
 
-  const targetCoords = userLocation
-    ? userLocation
-    : searchedLocation
-    ? { lat: searchedLocation.lat, lng: searchedLocation.lng }
-    : filteredStations.length > 0
-    ? { lat: filteredStations[0].lat, lng: filteredStations[0].lng }
-    : { lat: 13.9885, lng: 100.6858 };
+  // พิกัดเป้าหมายเริ่มต้น ป้องกันค่า undefined 100%
+  const defaultCoords = { lat: 13.9885, lng: 100.6858 }; // รังสิต ปทุมธานี
+  const targetCoords = 
+    userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng)
+      ? userLocation
+      : searchedLocation && !isNaN(searchedLocation.lat) && !isNaN(searchedLocation.lng)
+      ? { lat: searchedLocation.lat, lng: searchedLocation.lng }
+      : filteredStations.length > 0 && !isNaN(Number(filteredStations[0].lat)) && !isNaN(Number(filteredStations[0].lng))
+      ? { lat: Number(filteredStations[0].lat), lng: Number(filteredStations[0].lng) }
+      : defaultCoords;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -166,7 +172,7 @@ export default function ZoneMap({
       </div>
 
       <div className="h-[420px] w-full relative z-0">
-        <MapContainer center={[13.9885, 100.6858]} zoom={13} style={{ height: '100%', width: '100%' }}>
+        <MapContainer center={[defaultCoords.lat, defaultCoords.lng]} zoom={13} style={{ height: '100%', width: '100%' }}>
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; OpenStreetMap contributors'
@@ -174,7 +180,7 @@ export default function ZoneMap({
 
           <MapController targetCoords={targetCoords} />
 
-          {/* หมุดปักพิกัดทางน้ำ / จุดที่ผู้ใช้ค้นหาจริง */}
+          {/* หมุดค้นหา */}
           {searchedLocation && !userLocation && (
             <Marker position={[searchedLocation.lat, searchedLocation.lng]} icon={searchIcon}>
               <Popup>
@@ -187,8 +193,8 @@ export default function ZoneMap({
             </Marker>
           )}
 
-          {/* หมุด GPS ตำแหน่งปัจจุบัน */}
-          {userLocation && (
+          {/* หมุด GPS */}
+          {userLocation && !isNaN(userLocation.lat) && !isNaN(userLocation.lng) && (
             <CircleMarker
               center={[userLocation.lat, userLocation.lng]}
               radius={10}
@@ -202,13 +208,17 @@ export default function ZoneMap({
             </CircleMarker>
           )}
 
-          {/* หมุดสถานีวัดระดับน้ำจริง */}
+          {/* หมุดสถานีวัดน้ำ */}
           {filteredStations.map((station, idx) => {
+            const lat = Number(station.lat);
+            const lng = Number(station.lng);
+            if (isNaN(lat) || isNaN(lng)) return null;
+
             const color = getColor(station);
             return (
               <CircleMarker
                 key={idx}
-                center={[station.lat, station.lng]}
+                center={[lat, lng]}
                 radius={13}
                 pathOptions={{ fillColor: getColorHex(color), color: '#ffffff', weight: 2.5, fillOpacity: 0.85 }}
               >
