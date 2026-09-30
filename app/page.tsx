@@ -5,14 +5,7 @@ import dynamic from 'next/dynamic';
 import RouteChecker from '@/components/RouteChecker';
 import WaterChart from '@/components/WaterChart';
 
-
-const [mounted, setMounted] = useState(false);
-
-useEffect(() => {
-  setMounted(true);
-}, []);
-
-// Dynamic Import Leaflet ZoneMap เพื่อป้องกันปัญหา Server-Side Rendering (SSR)
+// Dynamic Import เพื่อป้องกันปัญหา Server-Side Rendering แผนที่ Leaflet
 const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
   ssr: false,
   loading: () => (
@@ -22,7 +15,6 @@ const ZoneMap = dynamic(() => import('@/components/ZoneMap'), {
   ),
 });
 
-// Interface รองรับข้อมูลจริงจาก API / Supabase
 interface WaterStation {
   id: number;
   station_name: string;
@@ -57,7 +49,7 @@ interface RiskAlert {
   id: number;
   province: string;
   area_name: string;
-  risk_level: 'RED' | 'ORANGE' | 'YELLOW';
+  risk_level: 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN';
   description: string;
   source_name: string;
   updated_at: string;
@@ -72,16 +64,21 @@ interface DashboardData {
 }
 
 export default function WaterDashboard() {
+  // ✅ ประกาศ State ภายในฟังก์ชัน Component ถูกต้องตามหลัก React
+  const [mounted, setMounted] = useState<boolean>(false);
   const [liveData, setLiveData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // State ตัวกรองพื้นที่ การค้นหา และพิกัด GPS
-  const [selectedProvince, setSelectedProvince] = useState<string>('ปทุมธานี');
-  const [searchQuery, setSearchQuery] = useState<string>('รังสิต');
+  const [selectedProvince, setSelectedProvince] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
 
-  // ดึงข้อมูล Realtime สดจาก API
+  // แก้อาการ Hydration Mismatch (Error #418) รอให้ Client Mount เสร็จก่อนค่อยแสดงเวลา
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const fetchLiveData = () => {
     setLoading(true);
     fetch('/api/water-summary')
@@ -100,12 +97,10 @@ export default function WaterDashboard() {
 
   useEffect(() => {
     fetchLiveData();
-    // รีเฟรชข้อมูลอัตโนมัติทุกๆ 5 นาที
-    const interval = setInterval(fetchLiveData, 300000);
+    const interval = setInterval(fetchLiveData, 300000); // รีเฟรชทุก 5 นาที
     return () => clearInterval(interval);
   }, []);
 
-  // ฟังก์ชันดึงตำแหน่ง GPS ปัจจุบันจากเบราว์เซอร์
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งปัจจุบัน (GPS)');
@@ -142,49 +137,49 @@ export default function WaterDashboard() {
     { id: 'นครนายก', name: '🏞️ โซนนครนายก - องครักษ์' },
   ];
 
-  // กรองรายการประกาศเตือนภัยความเสี่ยงตามพื้นที่ที่เลือก
-// กรองรายการประกาศเตือนภัย
-const filteredAlerts = (liveData?.alerts || []).filter((a) => {
-  if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
-  if (selectedProvince !== 'ALL' && a.province !== selectedProvince) return false;
-  if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
-    const q = searchQuery.toLowerCase().trim();
-    return (
-      a.area_name.toLowerCase().includes(q) ||
-      a.province.toLowerCase().includes(q) ||
-      a.description.toLowerCase().includes(q)
-    );
-  }
-  return true;
-});
+  // กรองประกาศเตือนภัย
+  const filteredAlerts = (liveData?.alerts || []).filter((a) => {
+    if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
+    if (selectedProvince !== 'ALL' && a.province !== selectedProvince) return false;
+    if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        a.area_name.toLowerCase().includes(q) ||
+        a.province.toLowerCase().includes(q) ||
+        a.description.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
-  // กรองรายการสถานีวัดน้ำ
-const filteredStations = (liveData?.stations || []).filter((s) => {
-  if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
-  if (selectedProvince !== 'ALL' && s.province !== selectedProvince) return false;
-  if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
-    const q = searchQuery.toLowerCase().trim();
-    return (
-      s.station_name.toLowerCase().includes(q) ||
-      s.province.toLowerCase().includes(q)
-    );
-  }
-  return true;
-});
-// กรองรายการสภาพการจราจร
-const filteredTraffic = (liveData?.traffic || []).filter((t) => {
-  if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
-  if (selectedProvince !== 'ALL' && t.province !== selectedProvince) return false;
-  if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
-    const q = searchQuery.toLowerCase().trim();
-    return (
-      t.road_name.toLowerCase().includes(q) ||
-      t.province.toLowerCase().includes(q) ||
-      t.district.toLowerCase().includes(q)
-    );
-  }
-  return true;
-});
+  // กรองสถานีวัดน้ำ
+  const filteredStations = (liveData?.stations || []).filter((s) => {
+    if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
+    if (selectedProvince !== 'ALL' && s.province !== selectedProvince) return false;
+    if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        s.station_name.toLowerCase().includes(q) ||
+        s.province.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  // กรองสภาพการจราจร
+  const filteredTraffic = (liveData?.traffic || []).filter((t) => {
+    if (selectedProvince === 'ALL' && (!searchQuery || searchQuery.trim() === '')) return true;
+    if (selectedProvince !== 'ALL' && t.province !== selectedProvince) return false;
+    if (searchQuery && !searchQuery.includes('ตำแหน่งปัจจุบัน')) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        t.road_name.toLowerCase().includes(q) ||
+        t.province.toLowerCase().includes(q) ||
+        t.district.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
@@ -197,15 +192,14 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
               🛰️ ระบบติดตามและรายงานสถานการณ์น้ำเรียลไทม์
             </div>
             <h1 className="text-2xl md:text-3xl font-bold">ศูนย์เฝ้าระวังน้ำและแจ้งเตือนภัยจราจร</h1>
-            <p className="text-blue-200 text-sm mt-1">ข้อมูลอัปเดตจากระบบ: {currentTime} น.</p>
+            <p className="text-blue-200 text-sm mt-1" suppressHydrationWarning>
+              ข้อมูลอัปเดตจากระบบ: {mounted ? currentTime : 'กำลังโหลด...'} น.
+            </p>
           </div>
-          <p className="text-blue-200 text-sm mt-1" suppressHydrationWarning>
-            ข้อมูลอัปเดตจากระบบ: {mounted ? currentTime : 'กำลังประมวลผล...'} น.
-          </p>
           <div className="bg-blue-800/80 backdrop-blur border border-blue-700 p-4 rounded-xl text-center min-w-[220px]">
             <span className="text-xs text-blue-200 block uppercase font-semibold">พื้นที่ติดตามปัจจุบัน</span>
             <span className="text-xl font-bold text-yellow-400 block my-1">
-              {searchQuery ? `${searchQuery}` : selectedProvince}
+              {searchQuery ? `${searchQuery}` : selectedProvince === 'ALL' ? 'ทั้งหมดทุกพื้นที่' : selectedProvince}
             </span>
             <button 
               onClick={fetchLiveData} 
@@ -216,7 +210,7 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
           </div>
         </div>
       </header>
-      
+
       <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
         {/* 🔍 ช่องค้นหาพื้นที่ + ปุ่ม GPS */}
@@ -348,7 +342,7 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
 
-              {/* 🚨 1. ประกาศเตือนภัยและพื้นที่เสี่ยงจริงทั้งหมด (Dynamic Render From Official Sources API) */}
+              {/* 🚨 1. ประกาศเตือนภัยและพื้นที่เสี่ยงจริงทั้งหมด */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <div className="flex justify-between items-center border-b pb-3">
                   <h3 className="text-md font-bold text-blue-900 flex items-center gap-2">
@@ -365,7 +359,6 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
                   </div>
                 ) : filteredAlerts.length > 0 ? (
                   <ul className="space-y-3 text-sm text-slate-700">
-                    {/* วนลูปแสดงพื้นที่เสี่ยงจริงทั้งหมดแบบ Dynamic */}
                     {filteredAlerts.map((alertItem) => {
                       const riskBadge = 
                         alertItem.risk_level === 'RED' 
@@ -402,7 +395,7 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
                 )}
               </div>
 
-              {/* 2. ตารางระดับน้ำทุกสถานีในพื้นที่ (Dynamic From Supabase API) */}
+              {/* 2. ตารางระดับน้ำทุกสถานีในพื้นที่ */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <h3 className="text-md font-bold text-blue-900 mb-4">🌧️ ตารางระดับน้ำและสถานีวัดจริงทั้งหมด</h3>
                 <div className="overflow-x-auto">
@@ -452,7 +445,7 @@ const filteredTraffic = (liveData?.traffic || []).filter((t) => {
                 </div>
               </div>
 
-              {/* 3. สถานะเส้นทางจราจรทั้งหมดในโซน (Dynamic From Supabase API) */}
+              {/* 3. สถานะเส้นทางจราจรทั้งหมดในโซน */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <h3 className="text-md font-bold text-blue-900 border-b pb-2">🚗 สถานะเส้นทางจราจรทั้งหมดในพื้นที่</h3>
                 <div className="space-y-3">
